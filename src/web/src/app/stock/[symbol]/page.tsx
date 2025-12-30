@@ -19,6 +19,12 @@ interface StockData {
     momentum_60d: number;
     volatility: number;
     atr: number;
+    rsi?: number;
+    macd?: number;
+    macd_signal?: number;
+    macd_hist?: number;
+    bb_upper?: number;
+    bb_lower?: number;
   };
   entry_levels: {
     aggressive: number;
@@ -236,6 +242,58 @@ export default function StockPage() {
                   ${data?.technicals.atr.toFixed(2)}
                 </div>
               </div>
+
+              {/* New Technicals */}
+              {data?.technicals.rsi !== undefined && (
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                  <div className="text-xs text-slate-500 uppercase mb-1">
+                    RSI (14)
+                  </div>
+                  <div
+                    className={`font-mono font-semibold ${
+                      data.technicals.rsi > 70
+                        ? "text-rose-400"
+                        : data.technicals.rsi < 30
+                        ? "text-emerald-400"
+                        : "text-slate-200"
+                    }`}
+                  >
+                    {data.technicals.rsi.toFixed(1)}
+                  </div>
+                </div>
+              )}
+              {data?.technicals.macd_hist !== undefined && (
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                  <div className="text-xs text-slate-500 uppercase mb-1">
+                    MACD Hist
+                  </div>
+                  <div
+                    className={`font-mono font-semibold ${
+                      data.technicals.macd_hist > 0
+                        ? "text-emerald-400"
+                        : "text-rose-400"
+                    }`}
+                  >
+                    {data.technicals.macd_hist.toFixed(2)}
+                  </div>
+                </div>
+              )}
+              {data?.technicals.bb_upper !== undefined &&
+                data?.technicals.bb_lower !== undefined && (
+                  <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
+                    <div className="text-xs text-slate-500 uppercase mb-1">
+                      Bollinger (Width)
+                    </div>
+                    <div className="font-mono font-semibold text-slate-200">
+                      {(
+                        ((data.technicals.bb_upper - data.technicals.bb_lower) /
+                          data.current_price) *
+                        100
+                      ).toFixed(1)}
+                      %
+                    </div>
+                  </div>
+                )}
             </div>
           </div>
         </div>

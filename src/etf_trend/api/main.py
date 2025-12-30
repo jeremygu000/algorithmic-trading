@@ -40,6 +40,7 @@ from etf_trend.data.providers.unified import load_prices_with_fallback
 from etf_trend.regime.engine import RegimeEngine
 from etf_trend.selector.satellite import StockSelector, StockCandidate
 from etf_trend.execution.executor import TradeExecutor, calculate_atr
+from etf_trend.features.indicators import calculate_rsi, calculate_macd, calculate_bollinger_bands
 
 # 获取配置
 from pathlib import Path
@@ -202,6 +203,19 @@ async def analyze_stock(symbol: str, days: int = 90):
         atr_df = calculate_atr(prices[[symbol]], 14)
         atr = float(atr_df[symbol].iloc[-1])
 
+        # 计算高级技术指标 (RSI, MACD, BB)
+        rsi_series = calculate_rsi(price_series)
+        rsi = float(rsi_series.iloc[-1])
+
+        macd_df = calculate_macd(price_series)
+        macd_val = float(macd_df['macd'].iloc[-1])
+        macd_signal = float(macd_df['signal'].iloc[-1])
+        macd_hist = float(macd_df['hist'].iloc[-1])
+
+        bb_df = calculate_bollinger_bands(price_series)
+        bb_upper = float(bb_df['upper'].iloc[-1])
+        bb_lower = float(bb_df['lower'].iloc[-1])
+
         # 生成推荐理由
         reasons = []
         recommendation = "观望"
@@ -224,6 +238,18 @@ async def analyze_stock(symbol: str, days: int = 90):
             reasons.append("趋势强劲")
         else:
             reasons.append("趋势偏弱")
+
+        # RSI 逻辑
+        if rsi > 70:
+            reasons.append("RSI超买")
+        elif rsi < 30:
+            reasons.append("RSI超卖")
+        
+        # MACD 逻辑
+        if macd_hist > 0 and macd_hist > macd_df['hist'].iloc[-2]:
+            reasons.append("MACD增强")
+        elif macd_hist < 0:
+            reasons.append("MACD走弱")
 
         # 确定推荐等级
         signal_strength = 0.5
@@ -348,6 +374,12 @@ async def analyze_stock(symbol: str, days: int = 90):
                 "momentum_60d": round(mom_60d, 2),
                 "volatility": round(vol, 2),
                 "atr": round(atr, 2),
+                "rsi": round(rsi, 2),
+                "macd": round(macd_val, 2),
+                "macd_signal": round(macd_signal, 2),
+                "macd_hist": round(macd_hist, 2),
+                "bb_upper": round(bb_upper, 2),
+                "bb_lower": round(bb_lower, 2),
             },
             "entry_levels": {
                 "aggressive": round(entry_aggressive, 2),
