@@ -142,24 +142,24 @@ def main():
             print("\n暂无符合条件的个股推荐")
         else:
             print(f"\n📊 共筛选出 {len(trade_plans)} 只推荐个股:\n")
-            
+
             for i, plan in enumerate(trade_plans, 1):
                 print("-" * 70)
                 print(f"[{i}] {plan.symbol}")
                 print(f"    推荐理由: {plan.reason}")
                 print(f"    当前价格: ${plan.current_price:.2f}")
                 print()
-                print(f"    【入场价位】")
+                print("    【入场价位】")
                 print(f"      • 激进入场 (MA20):     ${plan.entry_aggressive:.2f}")
                 print(f"      • 稳健入场 (回调2%):   ${plan.entry_moderate:.2f}")
                 print(f"      • 保守入场 (回调7%):   ${plan.entry_conservative:.2f}")
                 print()
-                print(f"    【止损价位】")
+                print("    【止损价位】")
                 print(f"      • 紧止损 (ATR×2):      ${plan.stop_tight:.2f}")
                 print(f"      • 标准止损 (ATR×3):    ${plan.stop_normal:.2f}")
                 print(f"      • 宽止损 (ATR×4):      ${plan.stop_loose:.2f}")
                 print()
-                print(f"    【止盈目标】")
+                print("    【止盈目标】")
                 print(f"      • TP1 (ATR×3):         ${plan.tp1:.2f}")
                 print(f"      • TP2 (ATR×6):         ${plan.tp2:.2f}")
                 print(f"      • TP3 (ATR×10):        ${plan.tp3:.2f}")

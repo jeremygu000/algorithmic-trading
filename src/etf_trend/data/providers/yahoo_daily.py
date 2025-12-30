@@ -17,7 +17,6 @@ Yahoo Finance 数据获取模块
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Iterable
 
 import pandas as pd

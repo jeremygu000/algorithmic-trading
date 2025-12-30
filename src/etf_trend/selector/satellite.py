@@ -29,7 +29,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-import numpy as np
 import pandas as pd
 
 from etf_trend.regime.engine import RegimeState
@@ -291,35 +290,40 @@ class StockSelector:
             # ---------------------------------------------------------------------
             # 1. 动量因子 (40%)
             score_mom = min(1.0, max(0.0, mom_val * 5))
-            
-            # 2. 价值因子 (30%) 
+
+            # 2. 价值因子 (30%)
             if use_fundamental and fund:
                 # 使用真实基本面数据
                 pe = fund.get("peRatio")
                 peg = fund.get("pegRatio")
-                
+
                 # 估值打分 (0-1)
                 score_val = 0.5
                 if pe and pe > 0:
-                   if pe < 20: score_val = 1.0
-                   elif pe < 30: score_val = 0.7
-                   elif pe > 50: score_val = 0.2
-                   
+                    if pe < 20:
+                        score_val = 1.0
+                    elif pe < 30:
+                        score_val = 0.7
+                    elif pe > 50:
+                        score_val = 0.2
+
                 if peg and peg > 0:
-                   if peg < 1.0: score_val = (score_val + 1.0) / 2
-                   elif peg > 2.0: score_val = (score_val + 0.2) / 2
-                   
+                    if peg < 1.0:
+                        score_val = (score_val + 1.0) / 2
+                    elif peg > 2.0:
+                        score_val = (score_val + 0.2) / 2
+
                 # 用波动率辅助质量
                 score_vol = min(1.0, max(0.0, (0.4 - vol_val) / 0.2))
-                
+
                 score_quality = 0.6 * score_val + 0.4 * score_vol
             else:
-                score_quality = min(1.0, max(0.0, (0.4 - vol_val) / 0.2)) # 仅用波动率代理
+                score_quality = min(1.0, max(0.0, (0.4 - vol_val) / 0.2))  # 仅用波动率代理
 
             # 3. 趋势因子 (30%)
             dist_ma = (price / ma_val) - 1
             score_trend = min(1.0, max(0.0, dist_ma * 10))
-            
+
             # 综合评分
             if use_fundamental:
                 signal_strength = 0.4 * score_mom + 0.3 * score_quality + 0.3 * score_trend
@@ -340,13 +344,13 @@ class StockSelector:
             if score_mom > 0.7:
                 reasons.append(f"强劲动量 ({mom_val*100:.1f}%)")
             elif score_mom > 0.4:
-                reasons.append(f"良好动量")
-                
+                reasons.append("良好动量")
+
             if score_quality > 0.7:
                 reasons.append("低波动高质量")
             elif score_quality > 0.4:
                 reasons.append("稳健波动")
-                
+
             if score_trend > 0.5:
                 reasons.append("趋势强劲")
 

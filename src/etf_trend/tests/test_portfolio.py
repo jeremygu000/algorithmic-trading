@@ -1,7 +1,6 @@
 
 import pytest
 import pandas as pd
-import numpy as np
 from etf_trend.portfolio.constraints import apply_constraints
 
 @pytest.fixture
@@ -14,12 +13,12 @@ def test_constraints_weights_sum_to_one(sample_weights):
     测试约束后权重之和为 1
     """
     result = apply_constraints(
-        sample_weights, 
-        max_single=1.0, 
-        max_core=1.0, 
+        sample_weights,
+        max_single=1.0,
+        max_core=1.0,
         core_symbols=[]
     )
-    
+
     assert abs(result.sum() - 1.0) < 1e-6
 
 def test_constraints_single_cap(sample_weights):
@@ -30,12 +29,12 @@ def test_constraints_single_cap(sample_weights):
     注意：clipping 后会重新归一化，所以可能不完全等于 max_single
     """
     result = apply_constraints(
-        sample_weights, 
-        max_single=0.4, 
-        max_core=1.0, 
+        sample_weights,
+        max_single=0.4,
+        max_core=1.0,
         core_symbols=[]
     )
-    
+
     # 原本 A=0.5，现在应该小于 0.5
     assert result["A"] < 0.5
     # 权重和为 1
@@ -49,12 +48,12 @@ def test_constraints_core_cap():
     """
     weights = pd.Series({"A": 0.4, "B": 0.4, "C": 0.2})
     result = apply_constraints(
-        weights, 
-        max_single=1.0, 
-        max_core=0.5, 
+        weights,
+        max_single=1.0,
+        max_core=0.5,
         core_symbols=["A", "B"]
     )
-    
+
     core_sum = result["A"] + result["B"]
     assert core_sum <= 0.5 + 1e-6
 
@@ -64,12 +63,12 @@ def test_constraints_empty_weights():
     """
     weights = pd.Series({"A": 0.0, "B": 0.0})
     result = apply_constraints(
-        weights, 
-        max_single=0.5, 
-        max_core=0.5, 
+        weights,
+        max_single=0.5,
+        max_core=0.5,
         core_symbols=[]
     )
-    
+
     assert result.sum() == 0.0
 
 def test_constraints_negative_weights_clipped():
@@ -78,10 +77,10 @@ def test_constraints_negative_weights_clipped():
     """
     weights = pd.Series({"A": -0.2, "B": 0.8, "C": 0.4})
     result = apply_constraints(
-        weights, 
-        max_single=1.0, 
-        max_core=1.0, 
+        weights,
+        max_single=1.0,
+        max_core=1.0,
         core_symbols=[]
     )
-    
+
     assert all(result >= 0)

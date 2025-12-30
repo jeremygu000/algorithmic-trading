@@ -33,7 +33,6 @@ from etf_trend.regime.engine import RegimeEngine
 from etf_trend.allocator.core import CoreAllocator
 from etf_trend.selector.satellite import StockSelector
 from etf_trend.execution.executor import TradeExecutor
-from etf_trend.analysis.llm_analyst import analyze_backtest
 
 # 获取包根目录
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
@@ -145,7 +144,7 @@ def main():
     print("正在生成交易计划...")
     executor = TradeExecutor()
     trade_plans = executor.generate_trade_plans(prices, allocation_result)
-    
+
     # 为推荐个股生成交易计划
     stock_trade_plans = []
     if stock_result.is_active and stock_result.candidates:
@@ -277,7 +276,7 @@ def _generate_pdf(
         # 生成推荐文本
         text_lines = []
         text_lines.append("=" * 50)
-        text_lines.append(f"       ETF 推荐配置明细")
+        text_lines.append("       ETF 推荐配置明细")
         text_lines.append("=" * 50)
         text_lines.append("")
 

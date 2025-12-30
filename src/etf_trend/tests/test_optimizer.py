@@ -16,13 +16,13 @@ def mock_returns():
     """
     np.random.seed(42)
     dates = pd.date_range("2023-01-01", periods=252, freq="B")
-    
+
     returns = pd.DataFrame({
         "A": np.random.normal(0.0005, 0.01, 252),  # 低波动
         "B": np.random.normal(0.0003, 0.02, 252),  # 中波动
         "C": np.random.normal(0.0001, 0.03, 252),  # 高波动
     }, index=dates)
-    
+
     return returns
 
 def test_min_variance_weights_sum_to_one(mock_returns):
@@ -31,7 +31,7 @@ def test_min_variance_weights_sum_to_one(mock_returns):
     """
     optimizer = PortfolioOptimizer(mock_returns)
     weights = optimizer.optimize(method="min_variance")
-    
+
     assert abs(weights.sum() - 1.0) < 1e-6
 
 def test_min_variance_prefers_low_vol(mock_returns):
@@ -42,7 +42,7 @@ def test_min_variance_prefers_low_vol(mock_returns):
     """
     optimizer = PortfolioOptimizer(mock_returns)
     weights = optimizer.optimize(method="min_variance")
-    
+
     # A 应该是权重最大的
     assert weights["A"] > weights["B"]
     assert weights["A"] > weights["C"]
@@ -53,7 +53,7 @@ def test_risk_parity_weights_sum_to_one(mock_returns):
     """
     optimizer = PortfolioOptimizer(mock_returns)
     weights = optimizer.optimize(method="risk_parity")
-    
+
     assert abs(weights.sum() - 1.0) < 1e-6
 
 def test_risk_parity_balances_risk(mock_returns):
@@ -64,7 +64,7 @@ def test_risk_parity_balances_risk(mock_returns):
     """
     optimizer = PortfolioOptimizer(mock_returns)
     weights = optimizer.optimize(method="risk_parity")
-    
+
     # 低波动资产 A 应该还是权重较高
     # (因为要贡献相同的风险，低波动资产需要更多权重)
     assert weights["A"] > weights["C"]
@@ -75,7 +75,7 @@ def test_max_weight_constraint(mock_returns):
     """
     optimizer = PortfolioOptimizer(mock_returns)
     weights = optimizer.optimize(method="min_variance", max_weight=0.5)
-    
+
     for w in weights.values:
         assert w <= 0.5 + 1e-6 # 允许微小误差
 

@@ -12,7 +12,6 @@
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
-from scipy import stats
 
 
 def calculate_alpha_beta(
@@ -87,17 +86,17 @@ def calculate_sortino_ratio(
     """
     # 计算下行偏差 (Downside Deviation)
     downside_returns = returns[returns < target_return]
-    
+
     if len(downside_returns) == 0:
         return np.inf
-        
+
     downside_std = np.sqrt(np.mean(downside_returns**2)) * np.sqrt(periods)
-    
+
     annual_return = np.mean(returns) * periods
-    
+
     if downside_std == 0:
         return np.inf
-        
+
     return (annual_return - target_return * periods) / downside_std
 
 
@@ -114,26 +113,26 @@ def calculate_max_drawdown_duration(returns: pd.Series) -> int:
     cumulative = (1 + returns).cumprod()
     peak = cumulative.cummax()
     drawdown = (cumulative - peak) / peak
-    
+
     # 标记处于回撤状态的日子
     is_drawdown = drawdown < 0
-    
+
     if not is_drawdown.any():
         return 0
-        
+
     # 计算连续回撤天数
     # identifying run lengths of True values
     # Ref: https://stackoverflow.com/questions/24527006/pandas-consecutive-boolean-counts
-    
+
     series = is_drawdown.astype(int)
     # 巧妙的方法：比较当前和前一个是否相等，不等则累加组号
     groups = series.ne(series.shift()).cumsum()
     # 既然只关心回撤(1)，筛选出处于回撤的组
     drawdown_groups = series[series == 1].groupby(groups)
-    
+
     if len(drawdown_groups) == 0:
         return 0
-        
+
     return drawdown_groups.size().max()
 
 
@@ -141,21 +140,21 @@ def calculate_advanced_metrics(
     returns: pd.Series, benchmark_returns: pd.Series | None = None
 ) -> dict:
     """计算综合高级指标"""
-    
+
     metrics = {
         "sortino_ratio": calculate_sortino_ratio(returns),
         "max_drawdown_duration": calculate_max_drawdown_duration(returns),
     }
-    
+
     if benchmark_returns is not None:
         metrics.update(calculate_alpha_beta(returns, benchmark_returns))
-        
+
         # Information Ratio
         # IR = (Rp - Rb) / TrackingError
         active_return = returns - benchmark_returns
         tracking_error = active_return.std() * np.sqrt(252)
         mean_active_return = active_return.mean() * 252
-        
+
         metrics["information_ratio"] = mean_active_return / tracking_error if tracking_error != 0 else np.nan
-        
+
     return metrics

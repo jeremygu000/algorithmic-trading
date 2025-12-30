@@ -6,7 +6,7 @@ def check_fundamentals(symbol):
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.info
-        
+
         # Extract key fundamental metrics
         fundamentals = {
             "symbol": symbol,
@@ -17,7 +17,7 @@ def check_fundamentals(symbol):
             "marketCap": info.get("marketCap"),
             "sector": info.get("sector")
         }
-        
+
         print(json.dumps(fundamentals, indent=2))
         return fundamentals
     except Exception as e:

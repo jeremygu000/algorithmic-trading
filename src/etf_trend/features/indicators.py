@@ -1,6 +1,5 @@
 from __future__ import annotations
 import pandas as pd
-import numpy as np
 
 
 def calculate_rsi(prices: pd.Series, window: int = 14) -> pd.Series:
@@ -31,7 +30,7 @@ def calculate_macd(prices: pd.Series, fast: int = 12, slow: int = 26, signal: in
     macd = exp1 - exp2
     signal_line = macd.ewm(span=signal, adjust=False).mean()
     hist = macd - signal_line
-    
+
     return pd.DataFrame({
         'macd': macd,
         'signal': signal_line,
@@ -50,7 +49,7 @@ def calculate_bollinger_bands(prices: pd.Series, window: int = 20, num_std: floa
     std = prices.rolling(window=window).std()
     upper = middle + (std * num_std)
     lower = middle - (std * num_std)
-    
+
     return pd.DataFrame({
         'middle': middle,
         'upper': upper,

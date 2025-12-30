@@ -48,3 +48,15 @@ dev = [
 [tool.black]
 line-length = 100
 target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["W293", "E501"]  # W293: blank line whitespace, E501: line too long (black handles this)
+
+[tool.ruff.lint.per-file-ignores]
+"src/etf_trend/scripts/*" = ["E402", "E501"]
+"src/etf_trend/api/*" = ["E402", "E501"]

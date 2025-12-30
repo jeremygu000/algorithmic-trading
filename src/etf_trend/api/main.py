@@ -21,14 +21,11 @@ from __future__ import annotations
 import base64
 import io
 from datetime import date, timedelta
-from dataclasses import asdict
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
 import pandas as pd
 import numpy as np
 import mplfinance as mpf
-import matplotlib.pyplot as plt
 import matplotlib
 
 # 配置中文字体 (macOS)
@@ -38,8 +35,7 @@ matplotlib.rcParams['axes.unicode_minus'] = False
 from etf_trend.config.settings import EnvSettings, load_config
 from etf_trend.data.providers.unified import load_prices_with_fallback
 from etf_trend.regime.engine import RegimeEngine
-from etf_trend.selector.satellite import StockSelector, StockCandidate
-from etf_trend.execution.executor import TradeExecutor, calculate_atr
+from etf_trend.selector.satellite import StockSelector
 from etf_trend.execution.executor import TradeExecutor, calculate_atr
 from etf_trend.features.indicators import calculate_rsi, calculate_macd, calculate_bollinger_bands
 from etf_trend.data.providers.yahoo_fundamentals import load_yahoo_fundamentals
@@ -197,7 +193,7 @@ async def analyze_stock(symbol: str, days: int = 90):
             cache_dir=cfg.cache.dir
         )
         fund_data = fundamentals_map.get(symbol) or {
-            "peRatio": None, "pegRatio": None, "pbRatio": None, 
+            "peRatio": None, "pegRatio": None, "pbRatio": None,
             "trailingEPS": None, "marketCap": None, "sector": None
         }
 
@@ -207,13 +203,13 @@ async def analyze_stock(symbol: str, days: int = 90):
         ma20 = float(price_series.rolling(20).mean().iloc[-1])
         ma50 = float(price_series.rolling(50).mean().iloc[-1])
         ma200 = float(price_series.rolling(200).mean().iloc[-1])
-        
+
         # 计算动量
         mom_60d = float((price_series.iloc[-1] / price_series.iloc[-60] - 1) * 100) if len(price_series) >= 60 else 0
-        
+
         # 计算波动率
         vol = float(price_series.pct_change().rolling(20).std().iloc[-1] * np.sqrt(252) * 100)
-        
+
         # 计算 ATR
         atr_df = calculate_atr(prices[[symbol]], 14)
         atr = float(atr_df[symbol].iloc[-1])
@@ -235,38 +231,38 @@ async def analyze_stock(symbol: str, days: int = 90):
         # =========================================================================
         # AI/ML 预测分析
         # =========================================================================
-        
+
         # 1. 相似形态搜索 (KNN)
         ai_pattern = find_similar_patterns(
-            price_series, 
+            price_series,
             price_series.iloc[:-20], # 在历史数据中搜索 (排除最近20天以防过度拟合，其实应该搜非样本)
             window=60,
             future_window=20
         )
-        
+
         # 2. 线性趋势预测
         ai_trend = predict_next_trend(price_series, lookback_days=20, forecast_days=5)
-        
+
         # =========================================================================
 
         # 生成推荐理由
         reasons = []
         recommendation = "观望"
-        
+
         if mom_60d > 15:
             reasons.append(f"强劲动量 ({mom_60d:.1f}%)")
         elif mom_60d > 5:
             reasons.append("良好动量")
         elif mom_60d < -10:
             reasons.append("动量较弱")
-        
+
         if vol < 25:
             reasons.append("低波动高质量")
         elif vol < 35:
             reasons.append("稳健波动")
         else:
             reasons.append("高波动")
-        
+
         if current_price > ma200:
             reasons.append("趋势强劲")
         else:
@@ -277,7 +273,7 @@ async def analyze_stock(symbol: str, days: int = 90):
             reasons.append("RSI超买")
         elif rsi < 30:
             reasons.append("RSI超卖")
-        
+
         # MACD 逻辑
         if macd_hist > 0 and macd_hist > macd_df['hist'].iloc[-2]:
             reasons.append("MACD增强")
@@ -289,7 +285,7 @@ async def analyze_stock(symbol: str, days: int = 90):
              reasons.append(f"低估值(PE {fund_data['peRatio']:.1f})")
         if fund_data["pegRatio"] and fund_data["pegRatio"] < 1.0:
              reasons.append("PEG低估")
-        
+
         # 确定推荐等级
         signal_strength = 0.5
         if mom_60d > 10 and current_price > ma200:
@@ -336,7 +332,7 @@ async def analyze_stock(symbol: str, days: int = 90):
         # 计算移动平均线并对齐索引
         ma20_series = prices[symbol].rolling(20).mean()
         ma50_series = prices[symbol].rolling(50).mean()
-        
+
         # 只保留 chart_df 索引范围内的数据
         ma20_aligned = ma20_series.reindex(chart_df.index)
         ma50_aligned = ma50_series.reindex(chart_df.index)
@@ -350,7 +346,7 @@ async def analyze_stock(symbol: str, days: int = 90):
 
         # 生成图表到内存
         buf = io.BytesIO()
-        
+
         # 使用英文标题避免字体问题
         stock_name = StockSelector.STOCK_NAMES.get(symbol, symbol)
         # 如果是中文名称，只显示股票代码
@@ -358,7 +354,7 @@ async def analyze_stock(symbol: str, days: int = 90):
             chart_title = symbol
         else:
             chart_title = f'{symbol} - {stock_name}'
-        
+
         # 定义关键价位水平线
         hlines_dict = dict(
             hlines=[
@@ -381,7 +377,7 @@ async def analyze_stock(symbol: str, days: int = 90):
             ],
             linewidths=[0.8, 1.2, 0.8, 0.8, 1.2, 0.8, 0.8, 1.2, 0.8],
         )
-        
+
         plot_kwargs = dict(
             type='candle',
             style='charles',
@@ -393,7 +389,7 @@ async def analyze_stock(symbol: str, days: int = 90):
         )
         if addplots:
             plot_kwargs['addplot'] = addplots
-        
+
         mpf.plot(chart_df, **plot_kwargs)
         buf.seek(0)
         chart_base64 = base64.b64encode(buf.read()).decode('utf-8')
@@ -417,8 +413,6 @@ async def analyze_stock(symbol: str, days: int = 90):
                 "macd": round(macd_val, 2),
                 "macd_signal": round(macd_signal, 2),
                 "macd_hist": round(macd_hist, 2),
-                "bb_upper": round(bb_upper, 2),
-                "bb_upper": round(bb_upper, 2),
                 "bb_upper": round(bb_upper, 2),
                 "bb_lower": round(bb_lower, 2),
             },
@@ -506,7 +500,7 @@ async def get_stock_picks():
             mom_weights=cfg.signal.mom_weights,
             vol_lookback=cfg.risk.vol_lookback,
         )
-        
+
         # 加载所有股票的基本面数据
         available_stocks = [s for s in all_symbols if s in prices.columns]
         fundamentals = load_yahoo_fundamentals(
@@ -514,11 +508,11 @@ async def get_stock_picks():
             cache_enabled=cfg.cache.enabled,
             cache_dir=cfg.cache.dir
         )
-        
+
         result = selector.select(
-            prices, 
-            regime_state, 
-            use_fundamental=True, 
+            prices,
+            regime_state,
+            use_fundamental=True,
             fundamentals=fundamentals
         )
 

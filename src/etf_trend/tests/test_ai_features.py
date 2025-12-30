@@ -30,11 +30,11 @@ def test_pattern_match_exact_find(sine_wave_data):
     history = sine_wave_data
     # 取最后 60 个点作为当前形态
     current = sine_wave_data.iloc[-60:]
-    
+
     # 搜索范围排除最后 20 天 (future_window) + 60 天 (current window)
     # 这里我们构造一个必定能找到的情况：
     # history 有很多周期，前面的周期应该和最后的周期形状一致
-    
+
     result = find_similar_patterns(
         current_prices=current,
         history_prices=history,
@@ -42,7 +42,7 @@ def test_pattern_match_exact_find(sine_wave_data):
         top_k=5,
         future_window=20
     )
-    
+
     # 验证
     assert result["similar_patterns_count"] == 5
     assert result["confidence_score"] > 0.7  # 应该非常相似
@@ -58,7 +58,7 @@ def test_pattern_match_insufficient_data():
     """
     short_data = pd.Series([1, 2, 3])
     result = find_similar_patterns(short_data, short_data, window=10)
-    
+
     assert result["similar_patterns_count"] == 0
     assert result["projection"] == "数据不足"
 
@@ -76,7 +76,7 @@ def test_trend_pred_upward():
     """
     prices = pd.Series(range(30))
     result = predict_next_trend(prices, lookback_days=20, forecast_days=5)
-    
+
     assert result["slope"] > 0
     assert result["target_price_5d"] > result["current_price"]
     assert "上升" in result["description"]
@@ -92,7 +92,7 @@ def test_trend_pred_downward():
     """
     prices = pd.Series(range(30, 0, -1))
     result = predict_next_trend(prices, lookback_days=20, forecast_days=5)
-    
+
     assert result["slope"] < 0
     assert result["target_price_5d"] < result["current_price"]
     assert "下降" in result["description"]
@@ -103,6 +103,6 @@ def test_trend_pred_insufficient_data():
     """
     prices = pd.Series([1, 2, 3])
     result = predict_next_trend(prices, lookback_days=10)
-    
+
     assert result["description"] == "数据不足"
     assert result["target_price_5d"] == 0.0

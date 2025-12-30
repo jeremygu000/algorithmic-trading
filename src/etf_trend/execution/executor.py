@@ -69,22 +69,22 @@ class TradePlan:
     action: Literal["BUY", "HOLD", "SELL"]
     target_weight: float
     current_price: float
-    
+
     # 多级入场
     entry_aggressive: float | None
     entry_moderate: float | None
     entry_conservative: float | None
-    
+
     # 多级止损
     stop_tight: float | None
     stop_normal: float | None
     stop_loose: float | None
-    
+
     # 多级止盈
     tp1: float | None
     tp2: float | None
     tp3: float | None
-    
+
     atr: float
     trailing_stop_pct: float | None
     reason: str

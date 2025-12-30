@@ -23,7 +23,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import numpy as np
 import pandas as pd
 
 from etf_trend.regime.engine import RegimeState
@@ -271,8 +270,8 @@ class CoreAllocator:
                 # 获取相关资产的收益率数据
                 returns = prices[top_symbols].pct_change().dropna()
                 # 截取最近的窗口
-                returns = returns.tail(252)  
-                
+                returns = returns.tail(252)
+
                 if len(returns) > 60: # 确保有足够数据
                     from etf_trend.allocator.optimizer import PortfolioOptimizer
                     opt = PortfolioOptimizer(returns)

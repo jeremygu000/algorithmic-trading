@@ -54,7 +54,7 @@ class PortfolioOptimizer:
 
     def _min_variance(self, max_weight: float) -> np.ndarray:
         """最小方差组合"""
-        
+
         # 目标函数：最小化组合方差 w'Σw
         def objective(weights):
             return weights.T @ self.cov_matrix @ weights
@@ -78,11 +78,11 @@ class PortfolioOptimizer:
 
     def _risk_parity(self, max_weight: float) -> np.ndarray:
         """风险平价组合 (ERC - Equal Risk Contribution)"""
-        
+
         # 目标：最小化风险贡献差异
         # 风险贡献 RC_i = w_i * (Σw)_i / sqrt(w'Σw)
         # 为简化计算，目标设为 minimize sum((w_i * (Σw)_i - target_risk)^2)
-        
+
         def calculate_portfolio_var(weights):
             return weights.T @ self.cov_matrix @ weights
 

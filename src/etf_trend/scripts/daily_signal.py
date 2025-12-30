@@ -155,7 +155,7 @@ def _print_human_readable(state, today, engine):
         vix_desc = "平静" if vix < 20 else ("担忧" if vix < 30 else "恐慌")
         print(f"  ● VIX: {vix:.1f} ({vix_desc})")
     else:
-        print(f"  ● VIX: 无数据 (假设正常)")
+        print("  ● VIX: 无数据 (假设正常)")
 
     # 动量
     momentum = signals.get("momentum_60d")

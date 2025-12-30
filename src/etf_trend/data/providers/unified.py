@@ -59,15 +59,15 @@ def load_prices_with_fallback(
                 cache_enabled=cache_enabled,
                 cache_dir=cache_dir,
             )
-            
+
             # 检查是否有数据缺失
             missing = [s for s in symbols if s not in df.columns or df[s].isnull().all()]
-            
+
             if not missing:
                 return df
-            
+
             print(f"Tiingo 缺失部分数据: {missing}，尝试使用 Yahoo Finance 补全...")
-            
+
             # 部分 Fallback: 使用 Yahoo 补全缺失数据
             yahoo_df = load_yahoo_daily_adjclose(
                 missing,
@@ -76,16 +76,16 @@ def load_prices_with_fallback(
                 cache_enabled=cache_enabled,
                 cache_dir=cache_dir,
             )
-            
+
             if not yahoo_df.empty:
                 # 合并数据
                 df = df.combine_first(yahoo_df)
-                
+
             return df
 
         except Exception as e:
             print(f"Tiingo 加载失败 ({e})，切换到 Yahoo Finance...")
-    
+
     # 尝试 2: Yahoo Finance (Fallback)
     print(f"尝试从 Yahoo Finance 加载 {len(symbols)} 个资产数据...")
     return load_yahoo_daily_adjclose(

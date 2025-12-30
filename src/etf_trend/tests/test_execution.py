@@ -2,7 +2,7 @@
 import pytest
 import pandas as pd
 import numpy as np
-from etf_trend.execution.executor import TradeExecutor, calculate_atr, TradePlan
+from etf_trend.execution.executor import TradeExecutor, calculate_atr
 from etf_trend.allocator.core import AllocationResult
 from etf_trend.selector.satellite import StockCandidate
 
@@ -12,15 +12,15 @@ def mock_prices():
     构造模拟价格数据：100天，每天涨1%，无波动（方便计算ATR）
     """
     dates = pd.date_range("2023-01-01", periods=100, freq="B")
-    
+
     # 构造两个资产
     # SPY: 线性上涨，方便计算收益率 ATR
     spy_price = 100 * (1.01 ** np.arange(100))
-    
+
     # GLD: 波动大一点
     gld_price = 100 * (1.005 ** np.arange(100))
     gld_price += np.random.normal(0, 1, 100)
-    
+
     return pd.DataFrame({
         "SPY": spy_price,
         "GLD": gld_price
@@ -45,17 +45,17 @@ def test_calculate_atr():
     # Price: 100, 110, 121...
     dates = pd.date_range("2023-01-01", periods=20, freq="B")
     prices = pd.DataFrame({"A": [100 * (1.1**i) for i in range(20)]}, index=dates)
-    
+
     # ATR = Rolling(abs(pct_change)).mean() * Price
     # pct_change 恒定为 0.1
     # ATR = 0.1 * Price
-    
+
     atr = calculate_atr(prices, window=5)
-    
+
     # 验证最后一天的 ATR
     last_price = prices["A"].iloc[-1]
     expected_atr = last_price * 0.1
-    
+
     # 允许微小误差 (浮点精度)
     assert abs(atr["A"].iloc[-1] - expected_atr) < 0.01
 
@@ -68,21 +68,21 @@ def test_trade_plan_generation(mock_prices, allocation_result):
         atr_multiplier=2.0,
         entry_pullback_pct=0.02
     )
-    
+
     plans = executor.generate_trade_plans(mock_prices, allocation_result)
-    
+
     # 应该有 2 个计划 (SPY, GLD)
     assert len(plans) == 2
-    
+
     # 验证 SPY (买入)
     spy_plan = next(p for p in plans if p.symbol == "SPY")
     assert spy_plan.action == "BUY"
     assert spy_plan.target_weight == 0.6
-    
+
     # 验证价格逻辑
     # Entry Moderate = Current * (1 - 0.02)
     assert spy_plan.entry_moderate == spy_plan.current_price * 0.98
-    
+
     # Stop Normal = Entry Moderate - (ATR * 2.0)
     expected_stop = spy_plan.entry_moderate - (spy_plan.atr * 2.0)
     assert abs(spy_plan.stop_normal - expected_stop) < 0.01
@@ -98,7 +98,7 @@ def test_stock_plan_generation(mock_prices):
     测试个股交易计划生成 (更宽的止损止盈)
     """
     executor = TradeExecutor()
-    
+
     # 构造个股候选
     candidates = [
         StockCandidate(
@@ -113,38 +113,37 @@ def test_stock_plan_generation(mock_prices):
             reason="Test"
         )
     ]
-    
+
     plans = executor.generate_stock_plans(mock_prices, candidates)
-    
+
     assert len(plans) == 1
     plan = plans[0]
-    
+
     assert plan.symbol == "SPY"
     assert plan.action == "BUY"
-    
+
     # 个股参数校验
     # Stop Normal = Entry - (ATR * 3.0) (代码里写死的个股倍数)
     expected_stop = plan.entry_moderate - (plan.atr * 3.0)
     assert abs(plan.stop_normal - expected_stop) < 0.01
-    
+
     # TP3 = Entry + (ATR * 10.0)
-    expected_tp3 = plan.entry_moderate - (plan.atr * 10.0) # 修正: 是 + 
     expected_tp3_correct = plan.entry_moderate + (plan.atr * 10.0)
-    
+
     assert abs(plan.tp3 - expected_tp3_correct) < 0.01
 
 def test_missing_data_handling():
     """测试缺失数据处理"""
     executor = TradeExecutor()
     alloc = AllocationResult(
-        weights={"UNKNOWN": 0.5}, 
+        weights={"UNKNOWN": 0.5},
         equity_weights={},
         defensive_weights={},
-        regime="RISK_ON", 
-        risk_budget=1.0, 
+        regime="RISK_ON",
+        risk_budget=1.0,
         metadata={}
     )
     prices = pd.DataFrame({"A": [1,2,3]}) # 没有 UNKNOWN
-    
+
     plans = executor.generate_trade_plans(prices, alloc)
     assert len(plans) == 0

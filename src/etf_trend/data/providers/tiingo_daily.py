@@ -14,8 +14,6 @@ Tiingo 数据获取模块
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime
 from typing import Any, Dict, Iterable
 
 import httpx
