@@ -40,7 +40,9 @@ from etf_trend.data.providers.unified import load_prices_with_fallback
 from etf_trend.regime.engine import RegimeEngine
 from etf_trend.selector.satellite import StockSelector, StockCandidate
 from etf_trend.execution.executor import TradeExecutor, calculate_atr
+from etf_trend.execution.executor import TradeExecutor, calculate_atr
 from etf_trend.features.indicators import calculate_rsi, calculate_macd, calculate_bollinger_bands
+from etf_trend.data.providers.yahoo_fundamentals import load_yahoo_fundamentals
 
 # 获取配置
 from pathlib import Path
@@ -186,6 +188,17 @@ async def analyze_stock(symbol: str, days: int = 90):
             prices, vix=None, market_symbol=cfg.universe.market_benchmark
         )
 
+        # 获取基本面数据
+        fundamentals_map = load_yahoo_fundamentals(
+            [symbol],
+            cache_enabled=cfg.cache.enabled,
+            cache_dir=cfg.cache.dir
+        )
+        fund_data = fundamentals_map.get(symbol) or {
+            "peRatio": None, "pegRatio": None, "pbRatio": None, 
+            "trailingEPS": None, "marketCap": None, "sector": None
+        }
+
         # 计算技术指标
         price_series = prices[symbol]
         current_price = float(price_series.iloc[-1])
@@ -251,6 +264,12 @@ async def analyze_stock(symbol: str, days: int = 90):
         elif macd_hist < 0:
             reasons.append("MACD走弱")
 
+        # 基本面逻辑
+        if fund_data["peRatio"] and fund_data["peRatio"] < 25:
+             reasons.append(f"低估值(PE {fund_data['peRatio']:.1f})")
+        if fund_data["pegRatio"] and fund_data["pegRatio"] < 1.0:
+             reasons.append("PEG低估")
+        
         # 确定推荐等级
         signal_strength = 0.5
         if mom_60d > 10 and current_price > ma200:
@@ -379,8 +398,10 @@ async def analyze_stock(symbol: str, days: int = 90):
                 "macd_signal": round(macd_signal, 2),
                 "macd_hist": round(macd_hist, 2),
                 "bb_upper": round(bb_upper, 2),
+                "bb_upper": round(bb_upper, 2),
                 "bb_lower": round(bb_lower, 2),
             },
+            "fundamentals": fund_data,
             "entry_levels": {
                 "aggressive": round(entry_aggressive, 2),
                 "aggressive_label": "激进入场 (MA20)",
@@ -460,7 +481,21 @@ async def get_stock_picks():
             mom_weights=cfg.signal.mom_weights,
             vol_lookback=cfg.risk.vol_lookback,
         )
-        result = selector.select(prices, regime_state, use_fundamental=True)
+        
+        # 加载所有股票的基本面数据
+        available_stocks = [s for s in all_symbols if s in prices.columns]
+        fundamentals = load_yahoo_fundamentals(
+            available_stocks,
+            cache_enabled=cfg.cache.enabled,
+            cache_dir=cfg.cache.dir
+        )
+        
+        result = selector.select(
+            prices, 
+            regime_state, 
+            use_fundamental=True, 
+            fundamentals=fundamentals
+        )
 
         executor = TradeExecutor()
         trade_plans = []

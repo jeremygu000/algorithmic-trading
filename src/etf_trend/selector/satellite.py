@@ -35,6 +35,7 @@ import pandas as pd
 from etf_trend.regime.engine import RegimeState
 from etf_trend.features.momentum import momentum_score
 from etf_trend.features.volatility import realized_vol_annual
+from etf_trend.data.providers.yahoo_fundamentals import FundamentalData
 
 
 # =============================================================================
@@ -196,6 +197,7 @@ class StockSelector:
         regime_state: RegimeState,
         as_of_date: pd.Timestamp | None = None,
         use_fundamental: bool = False,
+        fundamentals: dict[str, FundamentalData] | None = None,
     ) -> StockSelectionResult:
         """
         根据策略筛选股票
@@ -269,6 +271,7 @@ class StockSelector:
             mom_val = mom_latest.get(symbol)
             vol_val = vol_latest.get(symbol)
             ma_val = ma200_latest.get(symbol)
+            fund = fundamentals.get(symbol) if fundamentals else None
 
             # 跳过数据不完整的股票
             if any(pd.isna([price, mom_val, vol_val, ma_val])):
@@ -290,12 +293,28 @@ class StockSelector:
             score_mom = min(1.0, max(0.0, mom_val * 5))
             
             # 2. 价值因子 (30%) 
-            if use_fundamental:
-                # 只有在明确启用 (如生产环境) 时才使用，避免回测时的 Look-ahead Bias
-                # 此处暂用波动率作为质量代理 (低波动=高质量)
-                score_quality = min(1.0, max(0.0, (0.4 - vol_val) / 0.2))
+            if use_fundamental and fund:
+                # 使用真实基本面数据
+                pe = fund.get("peRatio")
+                peg = fund.get("pegRatio")
+                
+                # 估值打分 (0-1)
+                score_val = 0.5
+                if pe and pe > 0:
+                   if pe < 20: score_val = 1.0
+                   elif pe < 30: score_val = 0.7
+                   elif pe > 50: score_val = 0.2
+                   
+                if peg and peg > 0:
+                   if peg < 1.0: score_val = (score_val + 1.0) / 2
+                   elif peg > 2.0: score_val = (score_val + 0.2) / 2
+                   
+                # 用波动率辅助质量
+                score_vol = min(1.0, max(0.0, (0.4 - vol_val) / 0.2))
+                
+                score_quality = 0.6 * score_val + 0.4 * score_vol
             else:
-                score_quality = 0.5 # 中性评分
+                score_quality = min(1.0, max(0.0, (0.4 - vol_val) / 0.2)) # 仅用波动率代理
 
             # 3. 趋势因子 (30%)
             dist_ma = (price / ma_val) - 1

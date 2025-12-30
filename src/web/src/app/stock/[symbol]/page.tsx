@@ -51,6 +51,15 @@ interface StockData {
     tp3_label: string;
   };
   market_regime: string;
+  market_regime: string;
+  fundamentals?: {
+    peRatio: number | null;
+    pegRatio: number | null;
+    pbRatio: number | null;
+    trailingEPS: number | null;
+    marketCap: number | null;
+    sector: string | null;
+  };
   chart_base64: string;
 }
 
@@ -147,6 +156,55 @@ export default function StockPage() {
           {data?.reason}
         </p>
       </div>
+
+      {/* Fundamentals Card */}
+      {data?.fundamentals?.peRatio && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 bg-slate-900 rounded-2xl p-6 border border-slate-800">
+          <div className="col-span-2 md:col-span-4 mb-2 flex items-center gap-2">
+            <span className="text-xl">🏢</span>
+            <h3 className="font-bold text-slate-200">基本面概览</h3>
+            {data.fundamentals.sector && (
+              <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-400">
+                {data.fundamentals.sector}
+              </span>
+            )}
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">市盈率 (PE)</div>
+            <div className="text-lg font-mono text-slate-200 font-semibold">
+              {data.fundamentals.peRatio?.toFixed(1) || "N/A"}
+              <span className="text-xs text-slate-500 ml-1">x</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">PEG Ratio</div>
+            <div
+              className={`text-lg font-mono font-semibold ${
+                (data.fundamentals.pegRatio || 0) < 1 &&
+                (data.fundamentals.pegRatio || 0) > 0
+                  ? "text-emerald-400"
+                  : "text-slate-200"
+              }`}
+            >
+              {data.fundamentals.pegRatio?.toFixed(2) || "N/A"}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">EPS (TTM)</div>
+            <div className="text-lg font-mono text-slate-200 font-semibold">
+              ${data.fundamentals.trailingEPS?.toFixed(2) || "N/A"}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">市值</div>
+            <div className="text-lg font-mono text-slate-200 font-semibold">
+              {data.fundamentals.marketCap
+                ? `$${(data.fundamentals.marketCap / 1e9).toFixed(1)}B`
+                : "N/A"}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-8">
         {/* Main Chart Area */}
