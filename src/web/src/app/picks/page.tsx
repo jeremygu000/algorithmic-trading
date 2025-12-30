@@ -51,7 +51,10 @@ export default function PicksPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-xl text-gray-400">加载中...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-4 border-sky-500/30 border-t-sky-500 rounded-full animate-spin"></div>
+          <div className="text-slate-400">筛选优质标的中...</div>
+        </div>
       </div>
     );
   }
@@ -59,12 +62,8 @@ export default function PicksPage() {
   if (error) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-12">
-        <div className="bg-red-900/30 border border-red-700 rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-red-400 mb-2">加载失败</h2>
-          <p className="text-gray-400">{error}</p>
-          <p className="text-gray-500 mt-2 text-sm">
-            请确保 FastAPI 服务正在运行 (端口 8000)
-          </p>
+        <div className="bg-rose-950/30 border border-rose-900/50 rounded-2xl p-8 text-center">
+          <p className="text-rose-400 mb-2">{error}</p>
         </div>
       </div>
     );
@@ -72,83 +71,99 @@ export default function PicksPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold">🎯 今日推荐</h1>
-        <div className="text-gray-400">{data?.date}</div>
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">
+            🎯 智能选股推荐
+          </h1>
+          <p className="text-slate-400">
+            基于多因子模型的每日精选 (动量 + 波动率 + 趋势)
+          </p>
+        </div>
+        <div className="px-4 py-2 bg-slate-900 rounded-lg border border-slate-800 text-sm font-mono text-slate-400">
+          📅 {data?.date}
+        </div>
       </div>
 
       {/* Status Banner */}
       <div
-        className={`rounded-xl p-4 mb-8 ${
+        className={`rounded-xl p-4 mb-10 border ${
           data?.is_active
-            ? "bg-emerald-900/30 border border-emerald-700"
-            : "bg-yellow-900/30 border border-yellow-700"
+            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
+            : "bg-amber-500/10 border-amber-500/20 text-amber-300"
         }`}
       >
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">{data?.is_active ? "✅" : "⚠️"}</span>
+        <div className="flex items-start gap-3">
+          <span className="text-xl mt-0.5">
+            {data?.is_active ? "✅" : "⚠️"}
+          </span>
           <div>
-            <span
-              className={`font-semibold ${
-                data?.is_active ? "text-emerald-400" : "text-yellow-400"
-              }`}
-            >
-              {data?.regime}
-            </span>
-            <span className="text-gray-400 ml-2">• {data?.message}</span>
+            <div className="font-semibold mb-1">系统状态: {data?.regime}</div>
+            <div className="text-sm opacity-90">{data?.message}</div>
           </div>
         </div>
       </div>
 
       {/* Stock Cards */}
       {data?.picks && data.picks.length > 0 ? (
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-6">
           {data.picks.map((pick, idx) => (
             <a
               key={pick.symbol}
               href={`/stock/${pick.symbol}`}
-              className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-emerald-500 transition-all group"
+              className="bg-slate-900 block rounded-xl border border-slate-800 hover:border-sky-500 transition-all duration-300 group hover:shadow-xl hover:shadow-sky-500/10"
             >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl font-bold text-emerald-400">
-                    #{idx + 1}
-                  </span>
-                  <div>
-                    <h3 className="text-xl font-semibold group-hover:text-emerald-400">
-                      {pick.symbol}
-                    </h3>
-                    <p className="text-sm text-gray-400 truncate max-w-[200px]">
-                      {pick.reason}
-                    </p>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-slate-800 text-sky-400 font-bold border border-slate-700">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-white group-hover:text-sky-400 transition-colors">
+                        {pick.symbol}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">
+                      现价
+                    </div>
+                    <div className="text-2xl font-mono font-semibold text-slate-200">
+                      ${pick.current_price.toFixed(2)}
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm text-gray-400">当前</div>
-                  <div className="text-xl font-semibold">
-                    ${pick.current_price.toFixed(2)}
-                  </div>
-                </div>
-              </div>
 
-              {/* Price Levels */}
-              <div className="grid grid-cols-3 gap-3 text-sm">
-                <div className="bg-gray-700/50 rounded-lg p-3">
-                  <div className="text-gray-400 text-xs mb-1">入场 (稳健)</div>
-                  <div className="text-emerald-400 font-medium">
-                    ${pick.entry_levels.moderate.toFixed(2)}
+                <p className="text-sm text-slate-400 mb-6 line-clamp-2 min-h-[2.5em]">
+                  {pick.reason}
+                </p>
+
+                {/* Price Levels */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+                    <div className="text-slate-500 text-[10px] uppercase mb-1">
+                      入场 (稳健)
+                    </div>
+                    <div className="text-emerald-400 font-mono font-medium">
+                      ${pick.entry_levels.moderate.toFixed(2)}
+                    </div>
                   </div>
-                </div>
-                <div className="bg-gray-700/50 rounded-lg p-3">
-                  <div className="text-gray-400 text-xs mb-1">止损 (标准)</div>
-                  <div className="text-red-400 font-medium">
-                    ${pick.stop_levels.normal.toFixed(2)}
+                  <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+                    <div className="text-slate-500 text-[10px] uppercase mb-1">
+                      止损 (标准)
+                    </div>
+                    <div className="text-rose-400 font-mono font-medium">
+                      ${pick.stop_levels.normal.toFixed(2)}
+                    </div>
                   </div>
-                </div>
-                <div className="bg-gray-700/50 rounded-lg p-3">
-                  <div className="text-gray-400 text-xs mb-1">止盈 (TP1)</div>
-                  <div className="text-blue-400 font-medium">
-                    ${pick.take_profit_levels.tp1.toFixed(2)}
+                  <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50">
+                    <div className="text-slate-500 text-[10px] uppercase mb-1">
+                      目标 (TP1)
+                    </div>
+                    <div className="text-sky-400 font-mono font-medium">
+                      ${pick.take_profit_levels.tp1.toFixed(2)}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -156,20 +171,30 @@ export default function PicksPage() {
           ))}
         </div>
       ) : (
-        <div className="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
-          <div className="text-4xl mb-4">📭</div>
-          <p className="text-xl text-gray-400">暂无推荐个股</p>
-          <p className="text-gray-500 mt-2">当前市场状态不适合配置个股</p>
+        <div className="bg-slate-900 rounded-2xl p-16 border border-slate-800 text-center col-span-2">
+          <div className="text-6xl mb-6 opacity-20">📭</div>
+          <h3 className="text-xl font-semibold text-slate-300 mb-2">
+            暂无推荐
+          </h3>
+          <p className="text-slate-500">
+            当前市场环境下，模型未筛选出符合高胜率条件的标的。
+          </p>
         </div>
       )}
 
       {/* Risk Warning */}
-      <div className="mt-8 bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-        <h3 className="font-semibold text-yellow-400 mb-2">⚠️ 风险提示</h3>
-        <ul className="text-gray-400 text-sm space-y-1">
-          <li>• 个股波动远大于 ETF，建议单只仓位 ≤5%，总仓位 ≤20%</li>
-          <li>• 入场后严格执行止损，到达止盈目标分批减仓</li>
-          <li>• 本推荐仅供参考，不构成投资建议</li>
+      <div className="mt-12 p-6 bg-slate-900/50 rounded-xl border border-slate-800/50">
+        <h3 className="font-semibold text-sky-400 mb-3 text-sm uppercase tracking-wider">
+          ⚠️ 风险提示
+        </h3>
+        <ul className="text-slate-500 text-sm space-y-2 list-disc list-inside">
+          <li>
+            个股波动风险显著高于 ETF，建议严格控制单只股票仓位（推荐 ≤5%）。
+          </li>
+          <li>
+            请务必严格执行止损策略。当价格达到止盈目标时，建议分批减仓锁定利润。
+          </li>
+          <li>本系统生成的信号仅供量化研究参考，不构成具体投资建议。</li>
         </ul>
       </div>
     </div>
