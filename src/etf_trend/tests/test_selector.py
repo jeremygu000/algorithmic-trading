@@ -58,6 +58,10 @@ def mock_fundamentals():
             "peRatio": 15.0,  # 低估值
             "pegRatio": 0.8,  # 成长性好
             "trailingEPS": 5.0,
+            "returnOnEquity": 0.25, # High ROE
+            "grossMargins": 0.5,    # High Margin
+            "debtToEquity": 0.2,    # Low Debt
+            "earningsGrowth": 0.2,
             "marketCap": 200000000000,
             "sector": "Tech",
         },
@@ -66,9 +70,26 @@ def mock_fundamentals():
             "peRatio": 60.0,  # 高估值
             "pegRatio": 3.5,  # 成长性差
             "trailingEPS": 0.5,
+            "returnOnEquity": 0.05,
+            "grossMargins": 0.1,
+            "debtToEquity": 2.0,
+            "earningsGrowth": 0.0,
             "marketCap": 10000000000,
             "sector": "Tech",
         },
+    }
+
+@pytest.fixture
+def mock_ai_analysis():
+    return {
+        "STRONG": {
+            "pattern": {"win_rate": 0.8, "confidence_score": 0.9},
+            "trend": {"r_squared": 0.9, "slope": 1.5}
+        },
+        "WEAK": {
+            "pattern": {"win_rate": 0.3, "confidence_score": 0.4},
+            "trend": {"r_squared": 0.1, "slope": -0.5}
+        }
     }
 
 
@@ -131,8 +152,24 @@ def test_selector_fundamentals_impact(mock_prices, mock_regime_risk_on, mock_fun
     cand = res_fund.candidates[0]
     # 我们没法确切比较分数绝对值 (因为权重变了)，但可以检查 logic
     assert cand.symbol == "STRONG"
-    # 这里我们简单断言它依然是好的推荐
-    assert cand.signal_strength > 0.6
+    
+    # 推荐理由应包含 "高质量"
+    assert "高质量" in cand.reason or "低估值" in cand.reason
+
+
+def test_selector_ai_impact(mock_prices, mock_regime_risk_on, mock_ai_analysis):
+    """
+    测试：AI 预测对评分的影响
+    """
+    selector = StockSelector(stock_pool=["STRONG"], ma_window=200)
+
+    # 带 AI 预测
+    res_ai = selector.select(
+        mock_prices, mock_regime_risk_on, use_fundamental=False, ai_analysis=mock_ai_analysis
+    )
+    
+    cand = res_ai.candidates[0]
+    assert "AI形态看涨" in cand.reason or "AI趋势强" in cand.reason
 
 
 def test_selector_filtering_logic(mock_prices, mock_regime_risk_on):
@@ -152,3 +189,31 @@ def test_selector_filtering_logic(mock_prices, mock_regime_risk_on):
 
     # 预期：虽然之前趋势好，但当前价格 < MA200，应被剔除
     assert len(result.candidates) == 0
+
+
+def test_risk_metrics(mock_prices, mock_regime_risk_on):
+    """
+    Test risk management fields (exit, trailing stop)
+    """
+    selector = StockSelector(stock_pool=["STRONG"])
+    result = selector.select(mock_prices, mock_regime_risk_on)
+    
+    cand = result.candidates[0]
+    
+    # 1. Exit price should be lower than current price
+    assert cand.exit_price < cand.price
+    
+    # 2. Trailing stop pct should be reasonable (e.g. 0 < x < 0.2)
+    # ATR is likely small for "STRONG" stock (mocked as low vol)
+    assert 0 < cand.trailing_stop_pct < 0.2
+    
+    # 3. Hold days should be within bounds
+    assert 5 <= cand.hold_days <= 60
+    
+    # Check manual calculation logic: Exit = Price - 2.5 * ATR
+    # We can rough check.
+    # Price ~ 125 (start 100, +0.1% for 250 days)
+    # ATR ~ 0.5 (noise std=0.5)
+    # Exit ~ 125 - 2.5*0.5 = 123.75
+    # Trailing ~ 1.25 / 125 ~ 1%
+    assert cand.trailing_stop_pct < 0.05 # Should be quite tight for low vol stock

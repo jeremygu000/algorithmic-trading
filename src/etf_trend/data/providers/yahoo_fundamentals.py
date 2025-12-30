@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 
 class FundamentalData(TypedDict):
     symbol: str
-    peRatio: float | None
-    pegRatio: float | None
-    pbRatio: float | None
-    trailingEPS: float | None
+    returnOnEquity: float | None
+    grossMargins: float | None
+    debtToEquity: float | None
+    earningsGrowth: float | None
     marketCap: int | None
     sector: str | None
 
@@ -86,6 +86,10 @@ def load_yahoo_fundamentals(
                 "pegRatio": info.get("pegRatio"),
                 "pbRatio": info.get("priceToBook"),
                 "trailingEPS": info.get("trailingEps"),
+                "returnOnEquity": info.get("returnOnEquity"),
+                "grossMargins": info.get("grossMargins"),
+                "debtToEquity": info.get("debtToEquity"),
+                "earningsGrowth": info.get("earningsGrowth"),
                 "marketCap": info.get("marketCap"),
                 "sector": info.get("sector"),
             }
@@ -113,6 +117,10 @@ def load_yahoo_fundamentals(
                 "pegRatio": None,
                 "pbRatio": None,
                 "trailingEPS": None,
+                "returnOnEquity": None,
+                "grossMargins": None,
+                "debtToEquity": None,
+                "earningsGrowth": None,
                 "marketCap": None,
                 "sector": None,
             }

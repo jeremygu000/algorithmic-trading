@@ -63,6 +63,10 @@ class TradePlan:
         atr: 14日平均真实波幅
         trailing_stop_pct: 移动止损百分比
         reason: 交易理由
+        
+        # New fields from StockCandidate
+        recommended_hold_days: int = 20
+        current_stop_loss: float | None = None # Stop loss based on CMP (not entry)
     """
 
     symbol: str
@@ -88,6 +92,10 @@ class TradePlan:
     atr: float
     trailing_stop_pct: float | None
     reason: str
+    
+    # New fields from StockCandidate
+    recommended_hold_days: int = 20
+    current_stop_loss: float | None = None # Stop loss based on CMP (not entry)
 
     # 向后兼容属性
     @property
@@ -116,6 +124,7 @@ class TradePlan:
                 "tight": self.stop_tight,
                 "normal": self.stop_normal,
                 "loose": self.stop_loose,
+                "current": self.current_stop_loss, # CMP based stop
             },
             "take_profit_levels": {
                 "tp1": self.tp1,
@@ -124,6 +133,7 @@ class TradePlan:
             },
             "atr": self.atr,
             "trailing_stop_pct": self.trailing_stop_pct,
+            "recommended_hold_days": self.recommended_hold_days,
             "reason": self.reason,
         }
 
@@ -413,6 +423,14 @@ class TradeExecutor:
             # 计算移动止损百分比 (Trailing Stop)
             # ---------------------------------------------------------------------
             trailing_stop_pct = (atr * self.trailing_stop_atr) / current_price
+            
+            # Use candidate's specific fields if available
+            hold_days = getattr(candidate, "hold_days", 20)
+            current_stop = getattr(candidate, "exit_price", None)
+            
+            # If candidate has trailing stop, prefer it (consistency)
+            if hasattr(candidate, "trailing_stop_pct") and candidate.trailing_stop_pct > 0:
+                trailing_stop_pct = candidate.trailing_stop_pct
 
             # 使用候选股的推荐等级生成理由
             reason = f"{candidate.recommendation} | {candidate.reason}"
@@ -435,6 +453,8 @@ class TradeExecutor:
                     atr=atr,
                     trailing_stop_pct=trailing_stop_pct,
                     reason=reason,
+                    recommended_hold_days=hold_days,
+                    current_stop_loss=current_stop, 
                 )
             )
 
