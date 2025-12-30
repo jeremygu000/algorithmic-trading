@@ -177,6 +177,33 @@ graph LR
 uv sync
 ```
 
+### 🌐 启动 Web 应用 & API
+
+为了获得最佳体验，可以使用以下命令一键启动全栈应用：
+
+**1. 初始化环境 (首次运行)**
+
+```bash
+npm install     # 安装根目录工具
+npm run setup   # 同时安装 Python 和 Frontend 依赖
+```
+
+**2. 启动服务**
+
+```bash
+npm run dev
+```
+
+这将同时启动：
+
+- 🚀 **API 服务**: http://localhost:8000
+- 💻 **Web 界面**: http://localhost:3000
+
+也可以单独运行：
+
+- `npm run api`: 只启动后端 API
+- `npm run ui`: 只启动前端 Web UI
+
 ### 🏃 常用命令 (Daily Usage)
 
 **1. 生成最全面投资报告 (每周推荐)** 🌟

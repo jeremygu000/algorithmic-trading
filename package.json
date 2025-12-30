@@ -1,0 +1,14 @@
+{
+  "name": "etf-trend-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "api": "uv run uvicorn etf_trend.api.main:app --reload",
+    "ui": "npm run dev --prefix src/web",
+    "dev": "concurrently \"npm run api\" \"npm run ui\"",
+    "setup": "uv sync && npm install --prefix src/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
