@@ -43,6 +43,8 @@ from etf_trend.execution.executor import TradeExecutor, calculate_atr
 from etf_trend.execution.executor import TradeExecutor, calculate_atr
 from etf_trend.features.indicators import calculate_rsi, calculate_macd, calculate_bollinger_bands
 from etf_trend.data.providers.yahoo_fundamentals import load_yahoo_fundamentals
+from etf_trend.features.pattern_match import find_similar_patterns
+from etf_trend.features.trend_pred import predict_next_trend
 
 # 获取配置
 from pathlib import Path
@@ -227,7 +229,25 @@ async def analyze_stock(symbol: str, days: int = 90):
 
         bb_df = calculate_bollinger_bands(price_series)
         bb_upper = float(bb_df['upper'].iloc[-1])
+        bb_upper = float(bb_df['upper'].iloc[-1])
         bb_lower = float(bb_df['lower'].iloc[-1])
+
+        # =========================================================================
+        # AI/ML 预测分析
+        # =========================================================================
+        
+        # 1. 相似形态搜索 (KNN)
+        ai_pattern = find_similar_patterns(
+            price_series, 
+            price_series.iloc[:-20], # 在历史数据中搜索 (排除最近20天以防过度拟合，其实应该搜非样本)
+            window=60,
+            future_window=20
+        )
+        
+        # 2. 线性趋势预测
+        ai_trend = predict_next_trend(price_series, lookback_days=20, forecast_days=5)
+        
+        # =========================================================================
 
         # 生成推荐理由
         reasons = []
@@ -399,7 +419,12 @@ async def analyze_stock(symbol: str, days: int = 90):
                 "macd_hist": round(macd_hist, 2),
                 "bb_upper": round(bb_upper, 2),
                 "bb_upper": round(bb_upper, 2),
+                "bb_upper": round(bb_upper, 2),
                 "bb_lower": round(bb_lower, 2),
+            },
+            "ai_analysis": {
+                "pattern_match": ai_pattern,
+                "trend_prediction": ai_trend,
             },
             "fundamentals": fund_data,
             "entry_levels": {

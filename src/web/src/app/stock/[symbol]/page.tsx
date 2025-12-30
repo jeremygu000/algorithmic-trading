@@ -51,7 +51,6 @@ interface StockData {
     tp3_label: string;
   };
   market_regime: string;
-  market_regime: string;
   fundamentals?: {
     peRatio: number | null;
     pegRatio: number | null;
@@ -59,6 +58,23 @@ interface StockData {
     trailingEPS: number | null;
     marketCap: number | null;
     sector: string | null;
+  };
+  ai_analysis?: {
+    pattern_match: {
+      similar_patterns_count: number;
+      avg_return: number;
+      win_rate: number;
+      confidence_score: number;
+      projection: string;
+    };
+    trend_prediction: {
+      current_price: number;
+      target_price_5d: number;
+      predicted_change_pct: number;
+      slope: number;
+      r_squared: number;
+      description: string;
+    };
   };
   chart_base64: string;
 }
@@ -201,6 +217,105 @@ export default function StockPage() {
               {data.fundamentals.marketCap
                 ? `$${(data.fundamentals.marketCap / 1e9).toFixed(1)}B`
                 : "N/A"}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Insights Card */}
+      {data?.ai_analysis && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 bg-gradient-to-br from-indigo-950/30 to-purple-950/30 rounded-2xl p-6 border border-indigo-500/20 shadow-lg shadow-indigo-500/5 relative overflow-hidden">
+          {/* Background decoration */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+
+          {/* Header */}
+          <div className="col-span-1 md:col-span-2 flex items-center gap-2 mb-2">
+            <span className="text-xl">🤖</span>
+            <h3 className="font-bold text-indigo-200">AI 智能预测 (实验性)</h3>
+            <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30">
+              Alpha
+            </span>
+          </div>
+
+          {/* Pattern Matching */}
+          <div className="bg-slate-900/60 rounded-xl p-4 border border-indigo-500/10 backdrop-blur-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-4 bg-indigo-400 rounded-full"></div>
+              <h4 className="font-semibold text-slate-200 text-sm">
+                历史形态匹配 (Pattern Matching)
+              </h4>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">相似历史片段</span>
+                <span className="font-mono text-slate-200">
+                  {data.ai_analysis.pattern_match.similar_patterns_count} 组
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">历史胜率</span>
+                <span
+                  className={`font-mono font-bold ${
+                    data.ai_analysis.pattern_match.win_rate >= 0.6
+                      ? "text-emerald-400"
+                      : "text-slate-200"
+                  }`}
+                >
+                  {(data.ai_analysis.pattern_match.win_rate * 100).toFixed(0)}%
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">平均期望收益 (20d)</span>
+                <span
+                  className={`font-mono font-bold ${
+                    data.ai_analysis.pattern_match.avg_return > 0
+                      ? "text-emerald-400"
+                      : "text-rose-400"
+                  }`}
+                >
+                  {(data.ai_analysis.pattern_match.avg_return * 100).toFixed(1)}
+                  %
+                </span>
+              </div>
+              <div className="pt-2 text-xs text-indigo-300/80 italic border-t border-indigo-500/10">
+                "{data.ai_analysis.pattern_match.projection}"
+              </div>
+            </div>
+          </div>
+
+          {/* Trend Prediction */}
+          <div className="bg-slate-900/60 rounded-xl p-4 border border-indigo-500/10 backdrop-blur-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-4 bg-purple-400 rounded-full"></div>
+              <h4 className="font-semibold text-slate-200 text-sm">
+                趋势线性回归 (Linear Trend)
+              </h4>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">当前价格</span>
+                <span className="font-mono text-slate-200">
+                  ${data.ai_analysis.trend_prediction.current_price.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">5日理论目标</span>
+                <span className="font-mono text-purple-300 font-bold">
+                  $
+                  {data.ai_analysis.trend_prediction.target_price_5d.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">拟合优度 (R²)</span>
+                <span className="font-mono text-slate-200">
+                  {data.ai_analysis.trend_prediction.r_squared.toFixed(2)}
+                </span>
+              </div>
+              <div className="pt-2 text-xs text-purple-300/80 italic border-t border-purple-500/10">
+                "{data.ai_analysis.trend_prediction.description}"
+              </div>
             </div>
           </div>
         </div>
