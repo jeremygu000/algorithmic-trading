@@ -56,6 +56,17 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# 添加 CORS 中间件 (允许 Next.js 前端访问)
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # =============================================================================
 # API 端点
@@ -283,13 +294,37 @@ async def analyze_stock(symbol: str, days: int = 90):
         else:
             chart_title = f'{symbol} - {stock_name}'
         
+        # 定义关键价位水平线
+        hlines_dict = dict(
+            hlines=[
+                # 入场价位 (绿色)
+                entry_aggressive, entry_moderate, entry_conservative,
+                # 止损价位 (红色)
+                stop_tight, stop_normal, stop_loose,
+                # 止盈目标 (蓝色)
+                tp1, tp2, tp3,
+            ],
+            colors=[
+                '#22c55e', '#22c55e', '#22c55e',  # 绿色 - 入场
+                '#ef4444', '#ef4444', '#ef4444',  # 红色 - 止损
+                '#3b82f6', '#3b82f6', '#3b82f6',  # 蓝色 - 止盈
+            ],
+            linestyle=[
+                '--', '-', ':',  # 入场: 虚线/实线/点线
+                '--', '-', ':',  # 止损
+                '--', '-', ':',  # 止盈
+            ],
+            linewidths=[0.8, 1.2, 0.8, 0.8, 1.2, 0.8, 0.8, 1.2, 0.8],
+        )
+        
         plot_kwargs = dict(
             type='candle',
             style='charles',
             title=chart_title,
             ylabel='Price ($)',
-            savefig=dict(fname=buf, dpi=100, format='png'),
-            figratio=(12, 6),
+            savefig=dict(fname=buf, dpi=150, format='png'),
+            figratio=(14, 8),
+            hlines=hlines_dict,
         )
         if addplots:
             plot_kwargs['addplot'] = addplots
