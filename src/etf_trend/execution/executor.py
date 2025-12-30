@@ -44,22 +44,22 @@ class TradePlan:
         action: 交易方向 (BUY / HOLD / SELL)
         target_weight: 目标权重
         current_price: 当前价格
-        
+
         # 多级入场点 (Entry Levels)
         entry_aggressive: 激进入场 (MA20)
         entry_moderate: 稳健入场 (回调 2%)
         entry_conservative: 保守入场 (回调 5%)
-        
+
         # 多级止损点 (Stop Loss Levels)
         stop_tight: 紧止损 (ATR × 1.5)
         stop_normal: 标准止损 (ATR × 2.0)
         stop_loose: 宽止损 (ATR × 3.0)
-        
+
         # 多级止盈点 (Take Profit Levels)
         tp1: 第一止盈目标 (ATR × 2)
         tp2: 第二止盈目标 (ATR × 4)
         tp3: 第三止盈目标 (ATR × 6)
-        
+
         atr: 14日平均真实波幅
         trailing_stop_pct: 移动止损百分比
         reason: 交易理由
@@ -439,4 +439,3 @@ class TradeExecutor:
             )
 
         return plans
-

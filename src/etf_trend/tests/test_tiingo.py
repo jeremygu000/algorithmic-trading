@@ -1,4 +1,3 @@
-
 import pytest
 import shutil
 from pathlib import Path
@@ -8,6 +7,7 @@ from etf_trend.data.providers.tiingo_daily import load_tiingo_daily_adjclose
 
 # 定义缓存目录为临时目录
 TEMP_CACHE_DIR = "tests_cache_tiingo"
+
 
 @pytest.fixture
 def clean_cache():
@@ -21,6 +21,7 @@ def clean_cache():
     if path.exists():
         shutil.rmtree(path)
 
+
 @pytest.fixture
 def mock_httpx_client():
     """
@@ -32,10 +33,11 @@ def mock_httpx_client():
         MockClient.return_value.__enter__.return_value = mock_instance
         yield mock_instance
 
+
 def test_load_tiingo_fetch_new(clean_cache, mock_httpx_client):
     """
     测试：首次获取数据 (无缓存)
-    
+
     场景：请求 SPY 数据
     预期：
     1. 调用 httpx.get
@@ -56,8 +58,7 @@ def test_load_tiingo_fetch_new(clean_cache, mock_httpx_client):
     end = "2023-01-02"
 
     df = load_tiingo_daily_adjclose(
-        symbols, start, end, api_key="TEST_KEY",
-        cache_enabled=True, cache_dir=TEMP_CACHE_DIR
+        symbols, start, end, api_key="TEST_KEY", cache_enabled=True, cache_dir=TEMP_CACHE_DIR
     )
 
     # 验证 HTTP 请求
@@ -77,10 +78,11 @@ def test_load_tiingo_fetch_new(clean_cache, mock_httpx_client):
     expected_file = Path(TEMP_CACHE_DIR) / f"{key}.parquet"
     assert expected_file.exists()
 
+
 def test_load_tiingo_from_cache(clean_cache, mock_httpx_client):
     """
     测试：从缓存加载数据
-    
+
     场景：
     1. 先 fetch 一次生成缓存
     2. 再次调用，应该不发请求
@@ -94,8 +96,12 @@ def test_load_tiingo_from_cache(clean_cache, mock_httpx_client):
     mock_httpx_client.get.return_value = mock_response
 
     load_tiingo_daily_adjclose(
-        ["SPY"], "2023-01-01", "2023-01-01", api_key="TEST_KEY",
-        cache_enabled=True, cache_dir=TEMP_CACHE_DIR
+        ["SPY"],
+        "2023-01-01",
+        "2023-01-01",
+        api_key="TEST_KEY",
+        cache_enabled=True,
+        cache_dir=TEMP_CACHE_DIR,
     )
 
     # 重置 mock
@@ -103,13 +109,18 @@ def test_load_tiingo_from_cache(clean_cache, mock_httpx_client):
 
     # 第二次运行
     df = load_tiingo_daily_adjclose(
-        ["SPY"], "2023-01-01", "2023-01-01", api_key="TEST_KEY",
-        cache_enabled=True, cache_dir=TEMP_CACHE_DIR
+        ["SPY"],
+        "2023-01-01",
+        "2023-01-01",
+        api_key="TEST_KEY",
+        cache_enabled=True,
+        cache_dir=TEMP_CACHE_DIR,
     )
 
     # 验证：应该没有网络请求
     mock_httpx_client.get.assert_not_called()
     assert df["SPY"].iloc[0] == 100.0
+
 
 def test_load_tiingo_404(clean_cache, mock_httpx_client):
     """
@@ -121,6 +132,7 @@ def test_load_tiingo_404(clean_cache, mock_httpx_client):
 
     # httpx 抛出 HTTPStatusError
     import httpx
+
     mock_response = MagicMock()
     mock_response.status_code = 404
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
@@ -129,12 +141,12 @@ def test_load_tiingo_404(clean_cache, mock_httpx_client):
     mock_httpx_client.get.return_value = mock_response
 
     df = load_tiingo_daily_adjclose(
-        ["INVALID"], "2023-01-01", "2023-01-02", api_key="TEST_KEY",
-        cache_enabled=False
+        ["INVALID"], "2023-01-01", "2023-01-02", api_key="TEST_KEY", cache_enabled=False
     )
 
     # 预期：返回空 DataFrame 或不包含该列
     assert df.empty
+
 
 def test_load_tiingo_no_data_in_range(clean_cache, mock_httpx_client):
     """
@@ -142,12 +154,11 @@ def test_load_tiingo_no_data_in_range(clean_cache, mock_httpx_client):
     """
     mock_response = MagicMock()
     mock_response.status_code = 200
-    mock_response.json.return_value = [] # 空数据
+    mock_response.json.return_value = []  # 空数据
     mock_httpx_client.get.return_value = mock_response
 
     df = load_tiingo_daily_adjclose(
-        ["SPY"], "2023-01-01", "2023-01-02", api_key="TEST_KEY",
-        cache_enabled=False
+        ["SPY"], "2023-01-01", "2023-01-02", api_key="TEST_KEY", cache_enabled=False
     )
 
     # 预期：返回带索引但全NaN，或者空，视实现而定

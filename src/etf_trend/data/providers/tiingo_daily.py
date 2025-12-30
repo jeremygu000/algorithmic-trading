@@ -107,9 +107,7 @@ def _load_tiingo_sequential(
             else:
                 df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(None)
                 px = df["adjClose"] if "adjClose" in df.columns else df["close"]
-                out = pd.DataFrame({"date": df["date"], sym: px.astype(float)}).set_index(
-                    "date"
-                )
+                out = pd.DataFrame({"date": df["date"], sym: px.astype(float)}).set_index("date")
                 frames.append(out)
 
     if not frames:

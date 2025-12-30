@@ -29,12 +29,12 @@ def load_yahoo_fundamentals(
 ) -> dict[str, FundamentalData]:
     """
     加载基本面数据 (使用 Yahoo Finance)
-    
+
     Args:
         symbols: 股票代码列表
         cache_enabled: 是否缓存
         cache_dir: 缓存目录
-        
+
     Returns:
         dict: {symbol: FundamentalData}
     """
@@ -56,10 +56,10 @@ def load_yahoo_fundamentals(
             # 若 utils 只有 Parquet 支持，就用 Parquet。
             # 查阅代码发现 cache_path 只是返回路径。我们自己处理 IO。
 
-            json_path = path.with_suffix('.json')
+            json_path = path.with_suffix(".json")
             if json_path.exists():
                 try:
-                    with open(json_path, 'r', encoding='utf-8') as f:
+                    with open(json_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
                         result[sym] = data
                 except Exception:
@@ -96,12 +96,12 @@ def load_yahoo_fundamentals(
             if cache_enabled:
                 key = f"yahoo_fund_{sym}_{pd.Timestamp.now().strftime('%Y%m%d')}"
                 path = cache_path(cache_dir, key)
-                json_path = path.with_suffix('.json')
+                json_path = path.with_suffix(".json")
 
                 # 确保存储目录存在
                 json_path.parent.mkdir(parents=True, exist_ok=True)
 
-                with open(json_path, 'w', encoding='utf-8') as f:
+                with open(json_path, "w", encoding="utf-8") as f:
                     json.dump(fund_data, f)
 
         except Exception as e:

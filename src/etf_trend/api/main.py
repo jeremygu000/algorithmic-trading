@@ -29,8 +29,8 @@ import mplfinance as mpf
 import matplotlib
 
 # 配置中文字体 (macOS)
-matplotlib.rcParams['font.sans-serif'] = ['PingFang SC', 'Arial Unicode MS', 'SimHei']
-matplotlib.rcParams['axes.unicode_minus'] = False
+matplotlib.rcParams["font.sans-serif"] = ["PingFang SC", "Arial Unicode MS", "SimHei"]
+matplotlib.rcParams["axes.unicode_minus"] = False
 
 from etf_trend.config.settings import EnvSettings, load_config
 from etf_trend.data.providers.unified import load_prices_with_fallback
@@ -44,6 +44,7 @@ from etf_trend.features.trend_pred import predict_next_trend
 
 # 获取配置
 from pathlib import Path
+
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = PACKAGE_ROOT / "configs" / "default.yaml"
 
@@ -92,7 +93,7 @@ async def root():
 async def get_market_status():
     """
     获取当前市场状态
-    
+
     返回：
     - regime: RISK_ON / NEUTRAL / RISK_OFF
     - risk_budget: 风险预算 (0-1)
@@ -138,11 +139,11 @@ async def get_market_status():
 async def analyze_stock(symbol: str, days: int = 90):
     """
     单个股票详细分析
-    
+
     参数：
     - symbol: 股票代码 (如 AAPL, NVDA)
     - days: 蜡烛图显示天数 (默认 90)
-    
+
     返回：
     - symbol: 股票代码
     - name: 股票名称
@@ -188,13 +189,15 @@ async def analyze_stock(symbol: str, days: int = 90):
 
         # 获取基本面数据
         fundamentals_map = load_yahoo_fundamentals(
-            [symbol],
-            cache_enabled=cfg.cache.enabled,
-            cache_dir=cfg.cache.dir
+            [symbol], cache_enabled=cfg.cache.enabled, cache_dir=cfg.cache.dir
         )
         fund_data = fundamentals_map.get(symbol) or {
-            "peRatio": None, "pegRatio": None, "pbRatio": None,
-            "trailingEPS": None, "marketCap": None, "sector": None
+            "peRatio": None,
+            "pegRatio": None,
+            "pbRatio": None,
+            "trailingEPS": None,
+            "marketCap": None,
+            "sector": None,
         }
 
         # 计算技术指标
@@ -205,7 +208,11 @@ async def analyze_stock(symbol: str, days: int = 90):
         ma200 = float(price_series.rolling(200).mean().iloc[-1])
 
         # 计算动量
-        mom_60d = float((price_series.iloc[-1] / price_series.iloc[-60] - 1) * 100) if len(price_series) >= 60 else 0
+        mom_60d = (
+            float((price_series.iloc[-1] / price_series.iloc[-60] - 1) * 100)
+            if len(price_series) >= 60
+            else 0
+        )
 
         # 计算波动率
         vol = float(price_series.pct_change().rolling(20).std().iloc[-1] * np.sqrt(252) * 100)
@@ -219,14 +226,14 @@ async def analyze_stock(symbol: str, days: int = 90):
         rsi = float(rsi_series.iloc[-1])
 
         macd_df = calculate_macd(price_series)
-        macd_val = float(macd_df['macd'].iloc[-1])
-        macd_signal = float(macd_df['signal'].iloc[-1])
-        macd_hist = float(macd_df['hist'].iloc[-1])
+        macd_val = float(macd_df["macd"].iloc[-1])
+        macd_signal = float(macd_df["signal"].iloc[-1])
+        macd_hist = float(macd_df["hist"].iloc[-1])
 
         bb_df = calculate_bollinger_bands(price_series)
-        bb_upper = float(bb_df['upper'].iloc[-1])
-        bb_upper = float(bb_df['upper'].iloc[-1])
-        bb_lower = float(bb_df['lower'].iloc[-1])
+        bb_upper = float(bb_df["upper"].iloc[-1])
+        bb_upper = float(bb_df["upper"].iloc[-1])
+        bb_lower = float(bb_df["lower"].iloc[-1])
 
         # =========================================================================
         # AI/ML 预测分析
@@ -235,9 +242,11 @@ async def analyze_stock(symbol: str, days: int = 90):
         # 1. 相似形态搜索 (KNN)
         ai_pattern = find_similar_patterns(
             price_series,
-            price_series.iloc[:-20], # 在历史数据中搜索 (排除最近20天以防过度拟合，其实应该搜非样本)
+            price_series.iloc[
+                :-20
+            ],  # 在历史数据中搜索 (排除最近20天以防过度拟合，其实应该搜非样本)
             window=60,
-            future_window=20
+            future_window=20,
         )
 
         # 2. 线性趋势预测
@@ -275,16 +284,16 @@ async def analyze_stock(symbol: str, days: int = 90):
             reasons.append("RSI超卖")
 
         # MACD 逻辑
-        if macd_hist > 0 and macd_hist > macd_df['hist'].iloc[-2]:
+        if macd_hist > 0 and macd_hist > macd_df["hist"].iloc[-2]:
             reasons.append("MACD增强")
         elif macd_hist < 0:
             reasons.append("MACD走弱")
 
         # 基本面逻辑
         if fund_data["peRatio"] and fund_data["peRatio"] < 25:
-             reasons.append(f"低估值(PE {fund_data['peRatio']:.1f})")
+            reasons.append(f"低估值(PE {fund_data['peRatio']:.1f})")
         if fund_data["pegRatio"] and fund_data["pegRatio"] < 1.0:
-             reasons.append("PEG低估")
+            reasons.append("PEG低估")
 
         # 确定推荐等级
         signal_strength = 0.5
@@ -319,13 +328,15 @@ async def analyze_stock(symbol: str, days: int = 90):
 
         # 生成蜡烛图
         chart_data = prices[symbol].iloc[-days:]
-        chart_df = pd.DataFrame({
-            'Open': chart_data.shift(1),
-            'High': chart_data.rolling(2).max(),
-            'Low': chart_data.rolling(2).min(),
-            'Close': chart_data,
-            'Volume': 0,
-        })
+        chart_df = pd.DataFrame(
+            {
+                "Open": chart_data.shift(1),
+                "High": chart_data.rolling(2).max(),
+                "Low": chart_data.rolling(2).min(),
+                "Close": chart_data,
+                "Volume": 0,
+            }
+        )
         chart_df = chart_df.dropna()
         chart_df.index = pd.DatetimeIndex(chart_df.index)
 
@@ -340,9 +351,9 @@ async def analyze_stock(symbol: str, days: int = 90):
         # 添加移动平均线 (只在有足够数据时添加)
         addplots = []
         if ma20_aligned.notna().sum() > 10:
-            addplots.append(mpf.make_addplot(ma20_aligned, color='blue', width=1))
+            addplots.append(mpf.make_addplot(ma20_aligned, color="blue", width=1))
         if ma50_aligned.notna().sum() > 10:
-            addplots.append(mpf.make_addplot(ma50_aligned, color='orange', width=1))
+            addplots.append(mpf.make_addplot(ma50_aligned, color="orange", width=1))
 
         # 生成图表到内存
         buf = io.BytesIO()
@@ -350,49 +361,67 @@ async def analyze_stock(symbol: str, days: int = 90):
         # 使用英文标题避免字体问题
         stock_name = StockSelector.STOCK_NAMES.get(symbol, symbol)
         # 如果是中文名称，只显示股票代码
-        if any('\u4e00' <= c <= '\u9fff' for c in stock_name):
+        if any("\u4e00" <= c <= "\u9fff" for c in stock_name):
             chart_title = symbol
         else:
-            chart_title = f'{symbol} - {stock_name}'
+            chart_title = f"{symbol} - {stock_name}"
 
         # 定义关键价位水平线
         hlines_dict = dict(
             hlines=[
                 # 入场价位 (绿色)
-                entry_aggressive, entry_moderate, entry_conservative,
+                entry_aggressive,
+                entry_moderate,
+                entry_conservative,
                 # 止损价位 (红色)
-                stop_tight, stop_normal, stop_loose,
+                stop_tight,
+                stop_normal,
+                stop_loose,
                 # 止盈目标 (蓝色)
-                tp1, tp2, tp3,
+                tp1,
+                tp2,
+                tp3,
             ],
             colors=[
-                '#22c55e', '#22c55e', '#22c55e',  # 绿色 - 入场
-                '#ef4444', '#ef4444', '#ef4444',  # 红色 - 止损
-                '#3b82f6', '#3b82f6', '#3b82f6',  # 蓝色 - 止盈
+                "#22c55e",
+                "#22c55e",
+                "#22c55e",  # 绿色 - 入场
+                "#ef4444",
+                "#ef4444",
+                "#ef4444",  # 红色 - 止损
+                "#3b82f6",
+                "#3b82f6",
+                "#3b82f6",  # 蓝色 - 止盈
             ],
             linestyle=[
-                '--', '-', ':',  # 入场: 虚线/实线/点线
-                '--', '-', ':',  # 止损
-                '--', '-', ':',  # 止盈
+                "--",
+                "-",
+                ":",  # 入场: 虚线/实线/点线
+                "--",
+                "-",
+                ":",  # 止损
+                "--",
+                "-",
+                ":",  # 止盈
             ],
             linewidths=[0.8, 1.2, 0.8, 0.8, 1.2, 0.8, 0.8, 1.2, 0.8],
         )
 
         plot_kwargs = dict(
-            type='candle',
-            style='charles',
+            type="candle",
+            style="charles",
             title=chart_title,
-            ylabel='Price ($)',
-            savefig=dict(fname=buf, dpi=150, format='png'),
+            ylabel="Price ($)",
+            savefig=dict(fname=buf, dpi=150, format="png"),
             figratio=(14, 8),
             hlines=hlines_dict,
         )
         if addplots:
-            plot_kwargs['addplot'] = addplots
+            plot_kwargs["addplot"] = addplots
 
         mpf.plot(chart_df, **plot_kwargs)
         buf.seek(0)
-        chart_base64 = base64.b64encode(buf.read()).decode('utf-8')
+        chart_base64 = base64.b64encode(buf.read()).decode("utf-8")
         buf.close()
 
         return {
@@ -459,7 +488,7 @@ async def analyze_stock(symbol: str, days: int = 90):
 async def get_stock_picks():
     """
     获取今日推荐个股列表
-    
+
     返回推荐的所有个股及其多级价位
     """
     try:
@@ -504,16 +533,11 @@ async def get_stock_picks():
         # 加载所有股票的基本面数据
         available_stocks = [s for s in all_symbols if s in prices.columns]
         fundamentals = load_yahoo_fundamentals(
-            available_stocks,
-            cache_enabled=cfg.cache.enabled,
-            cache_dir=cfg.cache.dir
+            available_stocks, cache_enabled=cfg.cache.enabled, cache_dir=cfg.cache.dir
         )
 
         result = selector.select(
-            prices,
-            regime_state,
-            use_fundamental=True,
-            fundamentals=fundamentals
+            prices, regime_state, use_fundamental=True, fundamentals=fundamentals
         )
 
         executor = TradeExecutor()

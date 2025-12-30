@@ -1,8 +1,8 @@
-
 import pytest
 import pandas as pd
 import numpy as np
 from etf_trend.features.indicators import calculate_rsi, calculate_macd, calculate_bollinger_bands
+
 
 @pytest.fixture
 def sample_price_series():
@@ -15,6 +15,7 @@ def sample_price_series():
     price = 100 * np.cumprod(1 + returns)
     return pd.Series(price)
 
+
 @pytest.fixture
 def trend_price_series():
     """
@@ -23,14 +24,16 @@ def trend_price_series():
     # 线性增长：100, 101, 102...
     return pd.Series(range(100, 150), dtype=float)
 
+
 # =============================================================================
 # RSI 测试
 # =============================================================================
 
+
 def test_rsi_calculation_basic(sample_price_series):
     """
     测试 RSI 基本计算
-    
+
     预期：
     1. 返回结果应该是 pd.Series
     2. 长度应与输入一致
@@ -43,10 +46,11 @@ def test_rsi_calculation_basic(sample_price_series):
     assert rsi.min() >= 0
     assert rsi.max() <= 100
 
+
 def test_rsi_trend_up(trend_price_series):
     """
     测试单边上涨趋势的 RSI
-    
+
     场景：价格一直涨 100, 101, 102...
     预期：
     - Gain > 0, Loss = 0
@@ -59,14 +63,16 @@ def test_rsi_trend_up(trend_price_series):
     # 稳定后 RSI 应该是 100
     assert rsi.iloc[-1] > 99.0
 
+
 # =============================================================================
 # MACD 测试
 # =============================================================================
 
+
 def test_macd_structure(sample_price_series):
     """
     测试 MACD 返回结构
-    
+
     预期：
     1. 返回 DataFrame
     2. 包含 'macd', 'signal', 'hist' 三列
@@ -74,15 +80,16 @@ def test_macd_structure(sample_price_series):
     df = calculate_macd(sample_price_series)
 
     assert isinstance(df, pd.DataFrame)
-    assert 'macd' in df.columns
-    assert 'signal' in df.columns
-    assert 'hist' in df.columns
+    assert "macd" in df.columns
+    assert "signal" in df.columns
+    assert "hist" in df.columns
     assert len(df) == len(sample_price_series)
+
 
 def test_macd_crossover_logic():
     """
     测试 MACD 金叉/死叉逻辑
-    
+
     场景：构造一个先跌后涨的V型反转
     预期：
     - 下跌段：MACD < Signal (Hist < 0)
@@ -96,19 +103,21 @@ def test_macd_crossover_logic():
     df = calculate_macd(prices, fast=5, slow=10, signal=5)
 
     # 在下跌末段 (例如第15天)，Hist 应该是负的
-    assert df['hist'].iloc[15] < 0
+    assert df["hist"].iloc[15] < 0
 
     # 在上涨末段 (例如第35天)，Hist 应该是正的
-    assert df['hist'].iloc[35] > 0
+    assert df["hist"].iloc[35] > 0
+
 
 # =============================================================================
 # 布林带 (Bollinger Bands) 测试
 # =============================================================================
 
+
 def test_bollinger_bands_logic(sample_price_series):
     """
     测试布林带逻辑关系
-    
+
     预期：
     1. Upper > Middle > Lower
     2. Upper - Middle == Middle - Lower (对称)
@@ -118,20 +127,21 @@ def test_bollinger_bands_logic(sample_price_series):
     # 去除 NaN (前20天无法计算)
     valid_df = df.dropna()
 
-    assert (valid_df['upper'] >= valid_df['middle']).all()
-    assert (valid_df['middle'] >= valid_df['lower']).all()
+    assert (valid_df["upper"] >= valid_df["middle"]).all()
+    assert (valid_df["middle"] >= valid_df["lower"]).all()
 
     # 验证对称性 (允许浮点误差)
-    upper_diff = valid_df['upper'] - valid_df['middle']
-    lower_diff = valid_df['middle'] - valid_df['lower']
+    upper_diff = valid_df["upper"] - valid_df["middle"]
+    lower_diff = valid_df["middle"] - valid_df["lower"]
 
     # 判断两个 Series 是否近似相等
     pd.testing.assert_series_equal(upper_diff, lower_diff, check_names=False)
 
+
 def test_bollinger_bands_width_change():
     """
     测试布林带带宽随波动率变化
-    
+
     场景：前段平稳，后段剧烈波动
     预期：后段带宽 (Upper - Lower) > 前段带宽
     """
@@ -140,13 +150,13 @@ def test_bollinger_bands_width_change():
     # 为了避免 std=0 导致计算问题，加微小噪音
     part1 += np.random.normal(0, 0.1, 50)
 
-    part2 = np.random.normal(100, 5, 50) # 波动大
+    part2 = np.random.normal(100, 5, 50)  # 波动大
 
     prices = pd.Series(np.concatenate([part1, part2]))
 
     df = calculate_bollinger_bands(prices, window=10)
 
-    width = df['upper'] - df['lower']
+    width = df["upper"] - df["lower"]
 
     avg_width_part1 = width.iloc[10:50].mean()
     avg_width_part2 = width.iloc[60:].mean()

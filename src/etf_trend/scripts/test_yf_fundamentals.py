@@ -1,6 +1,6 @@
-
 import yfinance as yf
 import json
+
 
 def check_fundamentals(symbol):
     try:
@@ -15,13 +15,14 @@ def check_fundamentals(symbol):
             "pbRatio": info.get("priceToBook"),
             "trailingEPS": info.get("trailingEps"),
             "marketCap": info.get("marketCap"),
-            "sector": info.get("sector")
+            "sector": info.get("sector"),
         }
 
         print(json.dumps(fundamentals, indent=2))
         return fundamentals
     except Exception as e:
         print(f"Error checking {symbol}: {str(e)}")
+
 
 if __name__ == "__main__":
     check_fundamentals("AAPL")

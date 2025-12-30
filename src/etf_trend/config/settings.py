@@ -125,7 +125,6 @@ class AllocationCfg(BaseModel):
     top_n_defensive: int = 2
 
 
-
 class OptimizationCfg(BaseModel):
     """组合优化配置"""
 

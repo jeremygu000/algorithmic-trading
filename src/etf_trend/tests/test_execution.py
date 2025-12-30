@@ -1,10 +1,10 @@
-
 import pytest
 import pandas as pd
 import numpy as np
 from etf_trend.execution.executor import TradeExecutor, calculate_atr
 from etf_trend.allocator.core import AllocationResult
 from etf_trend.selector.satellite import StockCandidate
+
 
 @pytest.fixture
 def mock_prices():
@@ -21,21 +21,20 @@ def mock_prices():
     gld_price = 100 * (1.005 ** np.arange(100))
     gld_price += np.random.normal(0, 1, 100)
 
-    return pd.DataFrame({
-        "SPY": spy_price,
-        "GLD": gld_price
-    }, index=dates)
+    return pd.DataFrame({"SPY": spy_price, "GLD": gld_price}, index=dates)
+
 
 @pytest.fixture
 def allocation_result():
     return AllocationResult(
-        weights={"SPY": 0.6, "GLD": 0.0}, # SPY 买入, GLD 卖出
+        weights={"SPY": 0.6, "GLD": 0.0},  # SPY 买入, GLD 卖出
         equity_weights={"SPY": 0.6},
         defensive_weights={"GLD": 0.0},
         regime="RISK_ON",
         risk_budget=1.0,
-        metadata={}
+        metadata={},
     )
+
 
 def test_calculate_atr():
     """
@@ -59,15 +58,12 @@ def test_calculate_atr():
     # 允许微小误差 (浮点精度)
     assert abs(atr["A"].iloc[-1] - expected_atr) < 0.01
 
+
 def test_trade_plan_generation(mock_prices, allocation_result):
     """
     测试 ETF 交易计划生成
     """
-    executor = TradeExecutor(
-        atr_window=14,
-        atr_multiplier=2.0,
-        entry_pullback_pct=0.02
-    )
+    executor = TradeExecutor(atr_window=14, atr_multiplier=2.0, entry_pullback_pct=0.02)
 
     plans = executor.generate_trade_plans(mock_prices, allocation_result)
 
@@ -93,6 +89,7 @@ def test_trade_plan_generation(mock_prices, allocation_result):
     # 卖出计划没有入场点
     assert gld_plan.entry_moderate is None
 
+
 def test_stock_plan_generation(mock_prices):
     """
     测试个股交易计划生成 (更宽的止损止盈)
@@ -102,7 +99,7 @@ def test_stock_plan_generation(mock_prices):
     # 构造个股候选
     candidates = [
         StockCandidate(
-            symbol="SPY", # 复用数据里的 SPY 当做个股测试
+            symbol="SPY",  # 复用数据里的 SPY 当做个股测试
             name="Test Stock",
             price=100.0,
             momentum_score=90.0,
@@ -110,7 +107,7 @@ def test_stock_plan_generation(mock_prices):
             above_ma200=True,
             signal_strength=0.8,
             recommendation="强烈推荐",
-            reason="Test"
+            reason="Test",
         )
     ]
 
@@ -132,6 +129,7 @@ def test_stock_plan_generation(mock_prices):
 
     assert abs(plan.tp3 - expected_tp3_correct) < 0.01
 
+
 def test_missing_data_handling():
     """测试缺失数据处理"""
     executor = TradeExecutor()
@@ -141,9 +139,9 @@ def test_missing_data_handling():
         defensive_weights={},
         regime="RISK_ON",
         risk_budget=1.0,
-        metadata={}
+        metadata={},
     )
-    prices = pd.DataFrame({"A": [1,2,3]}) # 没有 UNKNOWN
+    prices = pd.DataFrame({"A": [1, 2, 3]})  # 没有 UNKNOWN
 
     plans = executor.generate_trade_plans(prices, alloc)
     assert len(plans) == 0

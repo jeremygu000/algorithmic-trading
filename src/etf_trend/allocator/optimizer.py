@@ -30,9 +30,7 @@ class PortfolioOptimizer:
         self.assets = returns.columns
         self.n_assets = len(self.assets)
 
-    def optimize(
-        self, method: str = "min_variance", max_weight: float = 1.0
-    ) -> pd.Series:
+    def optimize(self, method: str = "min_variance", max_weight: float = 1.0) -> pd.Series:
         """
         执行组合优化
 

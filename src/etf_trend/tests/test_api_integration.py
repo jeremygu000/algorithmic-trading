@@ -1,4 +1,5 @@
 import matplotlib
+
 # 强制使用 Agg 后端，避免在测试中启动 GUI
 matplotlib.use("Agg")
 
@@ -16,7 +17,6 @@ from etf_trend.regime.engine import RegimeState
 client = TestClient(app)
 
 
-
 @pytest.fixture
 def mock_prices():
     """构造模拟价格数据 (300天)"""
@@ -26,11 +26,9 @@ def mock_prices():
     # 添加 SPY 供 Regime 计算: 300 -> 400
     spy = np.linspace(300, 400, 300)
 
-    df = pd.DataFrame({
-        "AAPL": prices,
-        "SPY": spy
-    }, index=dates)
+    df = pd.DataFrame({"AAPL": prices, "SPY": spy}, index=dates)
     return df
+
 
 @pytest.fixture
 def mock_fundamentals():
@@ -42,23 +40,20 @@ def mock_fundamentals():
             "pegRatio": 1.2,
             "trailingEPS": 6.0,
             "marketCap": 3000000000000,
-            "sector": "Technology"
+            "sector": "Technology",
         }
     }
+
 
 @patch("etf_trend.api.main.load_prices_with_fallback")
 @patch("etf_trend.api.main.load_yahoo_fundamentals")
 @patch("etf_trend.api.main.RegimeEngine")
 def test_analyze_stock_endpoint(
-    MockRegimeEngine,
-    mock_load_fund,
-    mock_load_prices,
-    mock_prices,
-    mock_fundamentals
+    MockRegimeEngine, mock_load_fund, mock_load_prices, mock_prices, mock_fundamentals
 ):
     """
     测试 /api/stock/{symbol} 端点
-    
+
     场景：
     - 查询 AAPL
     - 确保返回结构包含: technicals, ai_analysis, entry_levels 等
@@ -71,9 +66,7 @@ def test_analyze_stock_endpoint(
     # Mock RegimeEngine behavior
     mock_engine_instance = MockRegimeEngine.return_value
     mock_engine_instance.detect.return_value = RegimeState(
-        regime="RISK_ON",
-        risk_budget=1.0,
-        signals={"trend": 1.0}
+        regime="RISK_ON", risk_budget=1.0, signals={"trend": 1.0}
     )
 
     # 2. Call API
@@ -114,7 +107,8 @@ def test_analyze_stock_endpoint(
 
     # Check Chart
     assert "chart_base64" in data
-    assert len(data["chart_base64"]) > 100 # 应该是比较长的 Base64 字符串
+    assert len(data["chart_base64"]) > 100  # 应该是比较长的 Base64 字符串
+
 
 @patch("etf_trend.api.main.load_prices_with_fallback")
 def test_stock_not_found(mock_load_prices):
@@ -126,15 +120,12 @@ def test_stock_not_found(mock_load_prices):
     assert response.status_code == 404
     assert "未找到股票" in response.json()["detail"]
 
+
 @patch("etf_trend.api.main.load_prices_with_fallback")
 @patch("etf_trend.api.main.load_yahoo_fundamentals")
 @patch("etf_trend.api.main.RegimeEngine")
 def test_get_stock_picks_endpoint(
-    MockRegimeEngine,
-    mock_load_fund,
-    mock_load_prices,
-    mock_prices,
-    mock_fundamentals
+    MockRegimeEngine, mock_load_fund, mock_load_prices, mock_prices, mock_fundamentals
 ):
     """
     测试 /api/picks 端点 (基本烟雾测试)
@@ -144,9 +135,7 @@ def test_get_stock_picks_endpoint(
 
     mock_engine_instance = MockRegimeEngine.return_value
     mock_engine_instance.detect.return_value = RegimeState(
-        regime="RISK_ON",
-        risk_budget=1.0,
-        signals={"trend": 1.0}
+        regime="RISK_ON", risk_budget=1.0, signals={"trend": 1.0}
     )
 
     response = client.get("/api/picks")

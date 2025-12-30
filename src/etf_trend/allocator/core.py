@@ -272,8 +272,9 @@ class CoreAllocator:
                 # 截取最近的窗口
                 returns = returns.tail(252)
 
-                if len(returns) > 60: # 确保有足够数据
+                if len(returns) > 60:  # 确保有足够数据
                     from etf_trend.allocator.optimizer import PortfolioOptimizer
+
                     opt = PortfolioOptimizer(returns)
                     weights_series = opt.optimize(self.optimizer_method)
                     weights = weights_series.to_dict()

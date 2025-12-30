@@ -148,9 +148,7 @@ def main():
     # 为推荐个股生成交易计划
     stock_trade_plans = []
     if stock_result.is_active and stock_result.candidates:
-        stock_trade_plans = executor.generate_stock_plans(
-            stock_prices, stock_result.candidates
-        )
+        stock_trade_plans = executor.generate_stock_plans(stock_prices, stock_result.candidates)
 
     # -------------------------------------------------------------------------
     # 生成 PDF 报告
@@ -384,9 +382,15 @@ def _generate_pdf(
                 if plan.action == "BUY":
                     exec_lines.append(f"[{plan.symbol}] {plan.reason}")
                     exec_lines.append(f"  当前: ${plan.current_price:.2f}")
-                    exec_lines.append(f"  入场: ${plan.entry_aggressive:.2f}(激进) / ${plan.entry_moderate:.2f}(稳健) / ${plan.entry_conservative:.2f}(保守)")
-                    exec_lines.append(f"  止损: ${plan.stop_tight:.2f}(紧) / ${plan.stop_normal:.2f}(标准) / ${plan.stop_loose:.2f}(宽)")
-                    exec_lines.append(f"  止盈: ${plan.tp1:.2f}(TP1) / ${plan.tp2:.2f}(TP2) / ${plan.tp3:.2f}(TP3)")
+                    exec_lines.append(
+                        f"  入场: ${plan.entry_aggressive:.2f}(激进) / ${plan.entry_moderate:.2f}(稳健) / ${plan.entry_conservative:.2f}(保守)"
+                    )
+                    exec_lines.append(
+                        f"  止损: ${plan.stop_tight:.2f}(紧) / ${plan.stop_normal:.2f}(标准) / ${plan.stop_loose:.2f}(宽)"
+                    )
+                    exec_lines.append(
+                        f"  止盈: ${plan.tp1:.2f}(TP1) / ${plan.tp2:.2f}(TP2) / ${plan.tp3:.2f}(TP3)"
+                    )
                 else:
                     exec_lines.append(f"[{plan.symbol}] 卖出信号")
                     exec_lines.append(f"  当前: ${plan.current_price:.2f} | {plan.reason}")
@@ -431,9 +435,15 @@ def _generate_pdf(
             for plan in stock_trade_plans[:4]:  # 减少到4个以腾出空间
                 stock_exec_lines.append(f"[{plan.symbol}] {plan.reason}")
                 stock_exec_lines.append(f"  当前: ${plan.current_price:.2f}")
-                stock_exec_lines.append(f"  入场: ${plan.entry_aggressive:.2f}(激进) / ${plan.entry_moderate:.2f}(稳健) / ${plan.entry_conservative:.2f}(保守)")
-                stock_exec_lines.append(f"  止损: ${plan.stop_tight:.2f}(紧) / ${plan.stop_normal:.2f}(标准) / ${plan.stop_loose:.2f}(宽)")
-                stock_exec_lines.append(f"  止盈: ${plan.tp1:.2f}(TP1) / ${plan.tp2:.2f}(TP2) / ${plan.tp3:.2f}(TP3)")
+                stock_exec_lines.append(
+                    f"  入场: ${plan.entry_aggressive:.2f}(激进) / ${plan.entry_moderate:.2f}(稳健) / ${plan.entry_conservative:.2f}(保守)"
+                )
+                stock_exec_lines.append(
+                    f"  止损: ${plan.stop_tight:.2f}(紧) / ${plan.stop_normal:.2f}(标准) / ${plan.stop_loose:.2f}(宽)"
+                )
+                stock_exec_lines.append(
+                    f"  止盈: ${plan.tp1:.2f}(TP1) / ${plan.tp2:.2f}(TP2) / ${plan.tp3:.2f}(TP3)"
+                )
                 stock_exec_lines.append("")
 
             stock_exec_lines.append("-" * 60)

@@ -1,9 +1,9 @@
-
 import numpy as np
 import pandas as pd
 from typing import TypedDict
 from fastdtw import fastdtw
 from scipy.spatial.distance import euclidean
+
 
 class PatternMatchResult(TypedDict):
     similar_patterns_count: int
@@ -12,28 +12,29 @@ class PatternMatchResult(TypedDict):
     confidence_score: float
     projection: str
 
+
 def find_similar_patterns(
     current_prices: pd.Series,
     history_prices: pd.Series,
     window: int = 60,
     top_k: int = 5,
-    future_window: int = 20
+    future_window: int = 20,
 ) -> PatternMatchResult:
     """
     寻找历史相似形态 (基于 DTW - Dynamic Time Warping)
-    
+
     原理：
     使用 DTW 算法计算当前价格曲线与历史片段的"距离"。
     相比欧氏距离，DTW 对时间轴的"拉伸"或"压缩"不敏感，
     能更好地识别出形状相似但节奏略有不同的形态。
-    
+
     Args:
         current_prices: 当前价格序列
         history_prices: 历史价格序列
         window: 形态匹配窗口长度
         top_k: 选取最相似的K个历史片段
         future_window: 预测未来窗口长度
-        
+
     Returns:
         PatternMatchResult
     """
@@ -43,7 +44,7 @@ def find_similar_patterns(
             "avg_return": 0.0,
             "win_rate": 0.0,
             "confidence_score": 0.0,
-            "projection": "数据不足"
+            "projection": "数据不足",
         }
 
     # 1. 准备目标序列 (归一化: (x - x[0]) / (std + epsilon) 或简单比例)
@@ -90,7 +91,7 @@ def find_similar_patterns(
             "avg_return": 0.0,
             "win_rate": 0.0,
             "confidence_score": 0.0,
-            "projection": "无历史数据"
+            "projection": "无历史数据",
         }
 
     # 3. 找出 Top K
@@ -103,7 +104,7 @@ def find_similar_patterns(
     for idx, dist in top_matches:
         start_future = idx + window
         end_future = start_future + future_window
-        future_prices = hist_values[start_future : end_future]
+        future_prices = hist_values[start_future:end_future]
 
         ret = (future_prices[-1] / future_prices[0]) - 1.0
         returns.append(ret)
@@ -118,12 +119,14 @@ def find_similar_patterns(
     confidence = max(0.0, min(1.0, 1.0 - avg_dist / 10.0))
 
     direction = "看涨" if avg_return > 0.02 else ("看跌" if avg_return < -0.02 else "震荡")
-    projection = f"DTW匹配{top_k}次: {win_rate*100:.0f}%概率{direction} (期望 {avg_return*100:.1f}%)"
+    projection = (
+        f"DTW匹配{top_k}次: {win_rate*100:.0f}%概率{direction} (期望 {avg_return*100:.1f}%)"
+    )
 
     return {
         "similar_patterns_count": top_k,
         "avg_return": avg_return,
         "win_rate": win_rate,
         "confidence_score": confidence,
-        "projection": projection
+        "projection": projection,
     }

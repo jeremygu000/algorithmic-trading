@@ -5,7 +5,7 @@ import pandas as pd
 def calculate_rsi(prices: pd.Series, window: int = 14) -> pd.Series:
     """
     计算相对强弱指标 (RSI)
-    
+
     RSI = 100 - (100 / (1 + RS))
     RS = Average Gain / Average Loss
     """
@@ -18,10 +18,12 @@ def calculate_rsi(prices: pd.Series, window: int = 14) -> pd.Series:
     return rsi.fillna(50)  # 填充初始值
 
 
-def calculate_macd(prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
+def calculate_macd(
+    prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9
+) -> pd.DataFrame:
     """
     计算异同移动平均线 (MACD)
-    
+
     Returns:
         DataFrame with columns: ['macd', 'signal', 'hist']
     """
@@ -31,17 +33,15 @@ def calculate_macd(prices: pd.Series, fast: int = 12, slow: int = 26, signal: in
     signal_line = macd.ewm(span=signal, adjust=False).mean()
     hist = macd - signal_line
 
-    return pd.DataFrame({
-        'macd': macd,
-        'signal': signal_line,
-        'hist': hist
-    })
+    return pd.DataFrame({"macd": macd, "signal": signal_line, "hist": hist})
 
 
-def calculate_bollinger_bands(prices: pd.Series, window: int = 20, num_std: float = 2.0) -> pd.DataFrame:
+def calculate_bollinger_bands(
+    prices: pd.Series, window: int = 20, num_std: float = 2.0
+) -> pd.DataFrame:
     """
     计算布林带 (Bollinger Bands)
-    
+
     Returns:
         DataFrame with columns: ['middle', 'upper', 'lower']
     """
@@ -50,8 +50,4 @@ def calculate_bollinger_bands(prices: pd.Series, window: int = 20, num_std: floa
     upper = middle + (std * num_std)
     lower = middle - (std * num_std)
 
-    return pd.DataFrame({
-        'middle': middle,
-        'upper': upper,
-        'lower': lower
-    })
+    return pd.DataFrame({"middle": middle, "upper": upper, "lower": lower})

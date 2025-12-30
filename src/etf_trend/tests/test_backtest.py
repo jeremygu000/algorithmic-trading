@@ -1,9 +1,9 @@
-
 import pytest
 import pandas as pd
 import numpy as np
 from etf_trend.backtest.engine import run_backtest
 from etf_trend.backtest.metrics import perf_stats
+
 
 @pytest.fixture
 def mock_prices():
@@ -17,11 +17,13 @@ def mock_prices():
 
     return pd.DataFrame({"A": a, "B": b}, index=dates)
 
+
 @pytest.fixture
 def mock_weights():
     """构造静态等权组合"""
     dates = pd.date_range("2023-01-01", periods=252, freq="B")
     return pd.DataFrame({"A": 0.5, "B": 0.5}, index=dates)
+
 
 def test_backtest_nav_increases(mock_prices, mock_weights):
     """
@@ -32,6 +34,7 @@ def test_backtest_nav_increases(mock_prices, mock_weights):
     # NAV 最终值 > 初始值
     assert result["nav"].iloc[-1] > result["nav"].iloc[0]
 
+
 def test_backtest_drawdown_negative(mock_prices, mock_weights):
     """
     测试：回撤应该是非正数
@@ -39,6 +42,7 @@ def test_backtest_drawdown_negative(mock_prices, mock_weights):
     result = run_backtest(mock_prices, mock_weights, cost_bps=10)
 
     assert all(result["drawdown"] <= 0)
+
 
 def test_backtest_turnover_with_static_weights(mock_prices, mock_weights):
     """
@@ -50,6 +54,7 @@ def test_backtest_turnover_with_static_weights(mock_prices, mock_weights):
     # 之后应该接近0
     assert result["turnover"].iloc[2:].mean() < 0.01
 
+
 def test_perf_stats_sharpe_positive(mock_prices, mock_weights):
     """
     测试：上涨市场中夏普比率应为正
@@ -58,6 +63,7 @@ def test_perf_stats_sharpe_positive(mock_prices, mock_weights):
     stats = perf_stats(bt)
 
     assert stats["Sharpe"] > 0
+
 
 def test_perf_stats_max_dd_negative(mock_prices, mock_weights):
     """

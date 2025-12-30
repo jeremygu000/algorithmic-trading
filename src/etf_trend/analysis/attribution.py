@@ -155,6 +155,8 @@ def calculate_advanced_metrics(
         tracking_error = active_return.std() * np.sqrt(252)
         mean_active_return = active_return.mean() * 252
 
-        metrics["information_ratio"] = mean_active_return / tracking_error if tracking_error != 0 else np.nan
+        metrics["information_ratio"] = (
+            mean_active_return / tracking_error if tracking_error != 0 else np.nan
+        )
 
     return metrics
