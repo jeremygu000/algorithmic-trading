@@ -46,9 +46,13 @@ def find_similar_patterns(
             "projection": "数据不足"
         }
         
-    # 1. 准备目标序列 (归一化)
+    # 1. 准备目标序列 (归一化: (x - x[0]) / (std + epsilon) 或简单比例)
     target = current_prices.iloc[-window:].values
-    target_norm = target / target[0] - 1.0
+    # 修改逻辑: 使用 Z-Score 归一化 (x - mean) / std，这样更稳健
+    epsilon = 1e-6
+    target_mean = np.mean(target)
+    target_std = np.std(target) + epsilon
+    target_norm = (target - target_mean) / target_std
     
     # 将目标序列转换为二维数组 (fastdtw 需要)
     # 这里的 reshape 是为了让 fastdtw 认为是一维特征的时间序列
@@ -67,8 +71,10 @@ def find_similar_patterns(
     for i in range(0, search_end_idx, step):
         segment = hist_values[i : i + window]
         
-        # 归一化
-        seg_norm = segment / segment[0] - 1.0
+        # 归一化 (Z-Score)
+        seg_mean = np.mean(segment)
+        seg_std = np.std(segment) + epsilon
+        seg_norm = (segment - seg_mean) / seg_std
         seg_norm = seg_norm.reshape(-1, 1)
         
         # 计算 DTW 距离
