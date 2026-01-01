@@ -27,18 +27,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import pandas as pd
 
 from etf_trend.regime.engine import RegimeState
 from etf_trend.features.momentum import momentum_score, momentum_decay_signal
 from etf_trend.features.volatility import realized_vol_annual
-from etf_trend.features.pattern_match import PatternMatchResult
-from etf_trend.features.trend_pred import TrendPrediction
 from etf_trend.execution.executor import calculate_atr
 from etf_trend.features.indicators import calculate_rsi
 from etf_trend.data.providers.yahoo_fundamentals import FundamentalData
+from etf_trend.ml.features import generate_features
 
 
 # =============================================================================
@@ -61,7 +60,7 @@ class StockCandidate:
         signal_strength: 综合信号强度 (0~1)
         recommendation: 推荐等级
         reason: 推荐原因
-        
+
         # New Risk Management Fields
         exit_price: 建议止损价
         trailing_stop_pct: 建议移动止损比例
@@ -77,7 +76,7 @@ class StockCandidate:
     signal_strength: float
     recommendation: Literal["强烈推荐", "推荐", "观望"]
     reason: str
-    
+
     # Defaults for backward compatibility (though we'll populate them)
     exit_price: float = 0.0
     trailing_stop_pct: float = 0.0
@@ -109,7 +108,7 @@ class StockSelectionResult:
 
 class StockSelector:
     """
-    卫星选股器 (Enhanced)
+    股票筛选器 (Satellite Strategy)
 
     在 RISK_ON 环境下，从股票池中筛选动量强、趋势向上的个股。
     使用多因子评分：
@@ -131,7 +130,7 @@ class StockSelector:
         "Utilities": "XLU",
         "Basic Materials": "XLB",
         "Real Estate": "XLRE",
-        "Communication Services": "XLC"
+        "Communication Services": "XLC",
     }
 
     # 默认的美股核心股票池（科技+消费+金融）
@@ -195,6 +194,7 @@ class StockSelector:
         vol_lookback: int = 60,
         max_volatility: float = 0.60,  # 年化波动率上限 60%
         top_n: int = 10,
+        ml_model: Any | None = None,  # Optional: MLScorer
     ):
         """
         初始化选股器
@@ -207,6 +207,7 @@ class StockSelector:
             vol_lookback: 波动率回溯期
             max_volatility: 最大允许年化波动率
             top_n: 返回 Top-N 只股票
+            ml_model: 机器学习模型实例 (MLScorer)
         """
         self.stock_pool = stock_pool or self.DEFAULT_STOCK_POOL
         self.ma_window = ma_window
@@ -215,6 +216,7 @@ class StockSelector:
         self.vol_lookback = vol_lookback
         self.max_volatility = max_volatility
         self.top_n = top_n
+        self.ml_model = ml_model
 
     def select(
         self,
@@ -272,7 +274,7 @@ class StockSelector:
         # 1. 计算动量
         mom = momentum_score(stock_prices, self.mom_windows, self.mom_weights)
         mom_latest = mom.loc[as_of_date] if as_of_date in mom.index else mom.iloc[-1]
-        
+
         # 2. 计算动量衰减
         # momentum_decay_signal 返回的是一个 Series (index=symbols)，包含了每只股票当前的衰减状态
         # 它不是一个时间序列 DataFrame，所以不需要 .loc[as_of_date]
@@ -292,13 +294,17 @@ class StockSelector:
             if as_of_date in stock_prices.index
             else stock_prices.iloc[-1]
         )
-        
+
         # 5. 计算 RSI (使用 14 日窗口)
         # 对每只股票分别计算 RSI
         rsi_map = {}
         for sym in available_stocks:
             rsi_series = calculate_rsi(stock_prices[sym])
-            rsi_map[sym] = rsi_series.loc[as_of_date] if as_of_date in rsi_series.index else rsi_series.iloc[-1]
+            rsi_map[sym] = (
+                rsi_series.loc[as_of_date]
+                if as_of_date in rsi_series.index
+                else rsi_series.iloc[-1]
+            )
 
         # 6. 计算行业动量 (Sector Momentum)
         # 需要 prices 中包含行业 ETF 的数据
@@ -321,6 +327,26 @@ class StockSelector:
         # ---------------------------------------------------------------------
         # 筛选候选股票
         # ---------------------------------------------------------------------
+        # 8. ML Scoring (if model available)
+        ml_scores = {}
+        if self.ml_model:
+            try:
+                # Generate features for all stocks (efficient batch)
+                # Need to handle potential lack of history for some
+                # For simplicity, pass full prices DF relative to as_of_date
+                # We need prices up to as_of_date for feature generation
+                hist_prices = prices.loc[:as_of_date]
+                if not hist_prices.empty:
+                    feats = generate_features(hist_prices)
+                    # Get features for execution date only
+                    # feats is MultiIndex (Date, Symbol)
+                    if as_of_date in feats.index.get_level_values(0):
+                        today_feats = feats.xs(as_of_date, level=0)
+                        preds = self.ml_model.predict(today_feats)
+                        ml_scores = preds.to_dict()
+            except Exception as e:
+                print(f"ML Scoring failed: {e}")
+
         candidates = []
 
         for symbol in available_stocks:
@@ -332,7 +358,10 @@ class StockSelector:
             ma_val = ma200_latest.get(symbol)
             rsi_val = rsi_map.get(symbol, 50.0)
             atr_val = atr_latest.get(symbol)
-            
+
+            # ML Score (used in ML-enhanced mode scoring below)
+            _ml_score = ml_scores.get(symbol, 0.5)  # Default neutral if missing
+
             fund = fundamentals.get(symbol) if fundamentals else None
             ai_data = ai_analysis.get(symbol) if ai_analysis else None
 
@@ -352,54 +381,62 @@ class StockSelector:
             # ---------------------------------------------------------------------
             # 计算综合多因子得分
             # ---------------------------------------------------------------------
-            
+
             # --- 1. 动量因子 (30%) ---
             # 基础动量 + 衰减惩罚
             score_mom = min(1.0, max(0.0, mom_val * 5))
             # 叠加衰减惩罚 (decay_val 是 0 到 -0.3 的负数)
             # 如果动量很强但刚开始衰减，分数会受到轻微打击
             # 如果动量一般且衰减，分数会大幅下降
-            
+
             # --- 2. 价值/质量因子 (20%) ---
-            score_quality = 0.5 # 默认中等
+            score_quality = 0.5  # 默认中等
             stock_sector = None
-            
+
             if use_fundamental and fund:
                 # 估值 (PE/PEG)
                 pe = fund.get("peRatio")
                 peg = fund.get("pegRatio")
                 stock_sector = fund.get("sector")
                 score_val = 0.5
-                
+
                 if pe and pe > 0:
                     score_val = 1.0 if pe < 25 else (0.7 if pe < 40 else 0.2)
                 if peg and peg > 0:
                     # PEG < 1 是强信号
-                    if peg < 1.0: score_val += 0.3
-                    elif peg > 2.5: score_val -= 0.2
-                
+                    if peg < 1.0:
+                        score_val += 0.3
+                    elif peg > 2.5:
+                        score_val -= 0.2
+
                 score_val = min(1.0, max(0.0, score_val))
 
                 # 质量 (ROE, Margins, Debt) - 越高越好
                 roe = fund.get("returnOnEquity") or 0.15
                 margin = fund.get("grossMargins") or 0.3
                 debt = fund.get("debtToEquity") or 1.0
-                
+
                 qs = 0.0
-                if roe > 0.2: qs += 0.4
-                elif roe > 0.1: qs += 0.2
-                
-                if margin > 0.4: qs += 0.3
-                elif margin > 0.2: qs += 0.1
-                
-                if debt < 0.5: qs += 0.3
-                elif debt < 1.5: qs += 0.1
-                
+                if roe > 0.2:
+                    qs += 0.4
+                elif roe > 0.1:
+                    qs += 0.2
+
+                if margin > 0.4:
+                    qs += 0.3
+                elif margin > 0.2:
+                    qs += 0.1
+
+                if debt < 0.5:
+                    qs += 0.3
+                elif debt < 1.5:
+                    qs += 0.1
+
                 score_fund_qual = min(1.0, qs)
 
                 # 结合估值、基本面质量和低波动特性
                 vol_score = min(1.0, max(0.0, (0.4 - vol_val) / 0.2))
-                
+
                 # 综合质量分: 40%估值 + 40%基本面 + 20%低波
                 score_quality = 0.4 * score_val + 0.4 * score_fund_qual + 0.2 * vol_score
             else:
@@ -409,20 +446,20 @@ class StockSelector:
             # --- 3. 趋势因子 (20%) ---
             dist_ma = (price / ma_val) - 1
             score_trend = min(1.0, max(0.0, dist_ma * 10))
-            
+
             # --- 4. AI 因子 (30%) ---
             score_ai_pattern = 0.5
             score_ai_trend = 0.5
-            
+
             if ai_data:
                 pattern_res = ai_data.get("pattern")
                 trend_res = ai_data.get("trend")
-                
+
                 if pattern_res:
                     # Win Rate > 0.6 开始加分
                     wr = pattern_res.get("win_rate", 0)
                     score_ai_pattern = min(1.0, max(0.0, (wr - 0.4) * 2.5))
-                
+
                 if trend_res:
                     # R2 > 0.5 且 slope > 0 加分
                     r2 = trend_res.get("r_squared", 0)
@@ -430,7 +467,7 @@ class StockSelector:
                     if slope > 0:
                         score_ai_trend = 0.5 + 0.5 * min(1.0, r2)
                     else:
-                        score_ai_trend = 0.5 - 0.5 * min(1.0, r2) # 趋势向下减分
+                        score_ai_trend = 0.5 - 0.5 * min(1.0, r2)  # 趋势向下减分
 
             # --- 5. 附加因子 (RSI & Sector) ---
             addon_score = 0.0
@@ -438,14 +475,14 @@ class StockSelector:
 
             # RSI Penalty/Bonus
             if rsi_val > 75:
-                addon_score -= 0.15 
+                addon_score -= 0.15
                 reasons.append(f"RSI超买({rsi_val:.0f})")
             elif rsi_val < 30:
-                addon_score -= 0.1 # 趋势策略不喜欢超卖
+                addon_score -= 0.1  # 趋势策略不喜欢超卖
                 reasons.append(f"RSI超卖({rsi_val:.0f})")
             elif 50 < rsi_val < 70:
                 addon_score += 0.05
-            
+
             # Sector Bonus
             if stock_sector:
                 # 尝试匹配 sector name
@@ -453,11 +490,11 @@ class StockSelector:
                 # 简单处理：包含关键词
                 sec_mom = 0.0
                 for k, v in sector_mom_map.items():
-                    if k in stock_sector: # e.g. "Technology" in "Technology"
+                    if k in stock_sector:  # e.g. "Technology" in "Technology"
                         sec_mom = v
                         break
-                
-                if sec_mom > 0.05: # 板块动量 > 5% (20日)
+
+                if sec_mom > 0.05:  # 板块动量 > 5% (20日)
                     addon_score += 0.1
                     reasons.append("板块强势")
                 elif sec_mom < -0.05:
@@ -465,16 +502,25 @@ class StockSelector:
                     reasons.append("板块弱势")
 
             # --- 综合评分 ---
-            signal_strength = (
-                0.30 * score_mom +
-                0.20 * score_quality +
-                0.20 * score_trend +
-                0.15 * score_ai_pattern +
-                0.15 * score_ai_trend +
-                decay_val +   # 动量衰减惩罚
-                addon_score   # RSI & Sector 修正
+            rule_score = (
+                0.30 * score_mom
+                + 0.20 * score_quality
+                + 0.20 * score_trend
+                + 0.15 * score_ai_pattern
+                + 0.15 * score_ai_trend
+                + decay_val  # 动量衰减惩罚
+                + addon_score  # RSI & Sector 修正
             )
-            
+
+            # 如果有 ML 模型，混合评分 (70% 规则 + 30% ML)
+            if self.ml_model and symbol in ml_scores:
+                ml_s = ml_scores[symbol]
+                signal_strength = 0.7 * rule_score + 0.3 * ml_s
+                if ml_s > 0.6:
+                    reasons.append(f"ML看涨({ml_s:.2f})")
+            else:
+                signal_strength = rule_score
+
             # 确保在 0-1 之间
             signal_strength = min(1.0, max(0.0, signal_strength))
 
@@ -487,19 +533,25 @@ class StockSelector:
                 recommendation = "观望"
 
             # 生成推荐原因
-            if score_mom > 0.7: reasons.append("强劲动量")
-            if decay_val < -0.1: reasons.append("动量衰减警示")
-            
-            if score_quality > 0.7: reasons.append("高质量/低估值")
-            
-            if score_ai_pattern > 0.7: reasons.append("AI形态看涨")
-            elif score_ai_pattern < 0.3: reasons.append("AI形态看跌")
-            
-            if score_ai_trend > 0.7: reasons.append("AI趋势强")
+            if score_mom > 0.7:
+                reasons.append("强劲动量")
+            if decay_val < -0.1:
+                reasons.append("动量衰减警示")
+
+            if score_quality > 0.7:
+                reasons.append("高质量/低估值")
+
+            if score_ai_pattern > 0.7:
+                reasons.append("AI形态看涨")
+            elif score_ai_pattern < 0.3:
+                reasons.append("AI形态看跌")
+
+            if score_ai_trend > 0.7:
+                reasons.append("AI趋势强")
 
             reason = "，".join(reasons)
             name = self.STOCK_NAMES.get(symbol, symbol)
-            
+
             # --- 计算风险指标 ---
             # 初始止损: 当前价格 - 2.5 * ATR
             exit_price = round(price - 2.5 * float(atr_val), 2)
@@ -535,7 +587,6 @@ class StockSelector:
             is_active=True,
             message=f"在 RISK_ON 环境下，推荐以下 {len(candidates)} 只股票作为卫星持仓候选",
         )
-
 
     def get_recommendation_text(self, result: StockSelectionResult) -> str:
         """

@@ -542,34 +542,29 @@ async def get_stock_picks():
         # 为了性能，限制 AI 预测的股票数量，或者只对初步筛选的做预测？
         # 由于我们这里是 select 逻辑，所有候选股都需要有分数。
         # 优化：先允许所有，如果慢再优化。
-        
+
         # 只计算在 prices 中的股票
         for sym in available_stocks:
             if sym not in prices.columns:
                 continue
-                
+
             series = prices[sym].dropna()
-            if len(series) < 80: # 需要足够数据
+            if len(series) < 80:  # 需要足够数据
                 continue
-                
+
             # 1. DTW
-            pattern = find_similar_patterns(
-                series, series.iloc[:-20], window=60, future_window=20
-            )
+            pattern = find_similar_patterns(series, series.iloc[:-20], window=60, future_window=20)
             # 2. Trend
             trend = predict_next_trend(series, lookback_days=20, forecast_days=5)
-            
-            ai_analysis_map[sym] = {
-                "pattern": pattern,
-                "trend": trend
-            }
+
+            ai_analysis_map[sym] = {"pattern": pattern, "trend": trend}
 
         result = selector.select(
             prices,
             regime_state,
             use_fundamental=True,
             fundamentals=fundamentals,
-            ai_analysis=ai_analysis_map
+            ai_analysis=ai_analysis_map,
         )
 
         executor = TradeExecutor()
