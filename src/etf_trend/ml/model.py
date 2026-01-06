@@ -16,15 +16,30 @@ class MLScorer:
     def __init__(self, model_path: Optional[str] = None):
         self.model = None
         self.features = [
+            # Trend
             "price_vs_ma20",
             "price_vs_ma50",
             "price_vs_ma200",
+            # Momentum
             "mom_1m",
             "mom_3m",
             "mom_6m",
+            "mom_5d",  # Phase 5
+            # Volatility
             "vol_annual",
             "atr_pct",
+            # RSI (multi-period - Phase 5)
             "rsi",
+            "rsi7",
+            "rsi21",
+            # MACD & Bollinger (Phase 5)
+            "macd_hist",
+            "bb_pct",
+            # Multi-MA Alignment (Phase 5)
+            "ma_alignment",
+            # Cross-Features (Phase 5)
+            "mom_rsi",
+            "trend_vol",
         ]
         if model_path and Path(model_path).exists():
             self.load(model_path)

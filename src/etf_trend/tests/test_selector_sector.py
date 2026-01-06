@@ -105,6 +105,8 @@ def test_rsi_overbought_penalty(mock_sector_prices, mock_regime_risk_on):
     """
     Test RSI Penalty.
     Manually spike price to create overbought condition.
+    Phase 5 Update: In strong uptrend, RSI high is "RSI偏高" (less severe),
+    in no-trend it's "RSI超买" (overbought).
     """
     prices = mock_sector_prices.copy()
 
@@ -119,5 +121,5 @@ def test_rsi_overbought_penalty(mock_sector_prices, mock_regime_risk_on):
 
     cand = result.candidates[0]
 
-    # Should have Penalty reason
-    assert "RSI超买" in cand.reason
+    # Should have RSI warning (either "RSI超买" or "RSI偏高" depending on trend)
+    assert "RSI超买" in cand.reason or "RSI偏高" in cand.reason

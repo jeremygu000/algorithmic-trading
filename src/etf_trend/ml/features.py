@@ -51,8 +51,12 @@ def generate_features(
     # Pre-calculate common indicators
     atr_df = calculate_atr(prices, window=14)
     rsi_df = pd.DataFrame()
+    rsi7_df = pd.DataFrame()
+    rsi21_df = pd.DataFrame()
     for col in prices.columns:
-        rsi_df[col] = calculate_rsi(prices[col])
+        rsi_df[col] = calculate_rsi(prices[col], window=14)
+        rsi7_df[col] = calculate_rsi(prices[col], window=7)
+        rsi21_df[col] = calculate_rsi(prices[col], window=21)
 
     ma20 = prices.rolling(20).mean()
     ma50 = prices.rolling(50).mean()
@@ -73,26 +77,36 @@ def generate_features(
         df["mom_1m"] = prices[symbol].pct_change(20)
         df["mom_3m"] = prices[symbol].pct_change(60)
         df["mom_6m"] = prices[symbol].pct_change(120)
-
-        # Rolling Slope (expensive, maybe optimized later)
-        # For now, just vectorized approx or skip loop if possible.
-        # Let's skip slope loop for speed in this MVP, rely on simple momentum.
+        df["mom_5d"] = prices[symbol].pct_change(5)  # Phase 5: Short-term momentum
 
         # 3. Volatility
         df["vol_annual"] = vol20[symbol]
         df["atr_pct"] = atr_df[symbol] / prices[symbol]
 
-        # 4. RSI
+        # 4. RSI (Multiple periods - Phase 5)
         df["rsi"] = rsi_df[symbol] / 100.0  # Normalize to 0-1
+        df["rsi7"] = rsi7_df[symbol] / 100.0
+        df["rsi21"] = rsi21_df[symbol] / 100.0
 
-        # 5. Sector Momentum (if map provided)
-        if sector_map and symbol in sector_map:
-            # We assume sector ETF prices are also in `prices` df or we need to pass them separate?
-            # For simplicity, assuming sector ETFs are NOT in `prices` passed here usually,
-            # unless `prices` contains everything.
-            # If we don't have sector data here easily, we skip or pass it in.
-            # Let's skip complex sector interaction for this base feature set for now.
-            pass
+        # 5. MACD (Phase 5)
+        from etf_trend.features.indicators import calculate_macd, calculate_bollinger_bands
+
+        macd_df = calculate_macd(prices[symbol])
+        df["macd_hist"] = macd_df["hist"] / prices[symbol]  # Normalize
+
+        # 6. Bollinger Bands %B (Phase 5)
+        bb_df = calculate_bollinger_bands(prices[symbol])
+        df["bb_pct"] = (prices[symbol] - bb_df["lower"]) / (bb_df["upper"] - bb_df["lower"])
+
+        # 7. Multi-MA Alignment (Phase 5)
+        # 1 if bullish (price > ma20 > ma50 > ma200), -1 if bearish, 0 otherwise
+        bullish = (prices[symbol] > ma20[symbol]) & (ma20[symbol] > ma50[symbol])
+        bearish = (prices[symbol] < ma20[symbol]) & (ma20[symbol] < ma50[symbol])
+        df["ma_alignment"] = bullish.astype(int) - bearish.astype(int)
+
+        # 8. Cross-Features (Phase 5)
+        df["mom_rsi"] = df["mom_1m"] * df["rsi"]  # Momentum-RSI interaction
+        df["trend_vol"] = df["price_vs_ma50"] * df["vol_annual"]  # Trend-Vol interaction
 
         df["symbol"] = symbol
         features_list.append(df)

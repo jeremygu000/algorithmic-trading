@@ -35,7 +35,7 @@ from etf_trend.regime.engine import RegimeState
 from etf_trend.features.momentum import momentum_score, momentum_decay_signal
 from etf_trend.features.volatility import realized_vol_annual
 from etf_trend.execution.executor import calculate_atr
-from etf_trend.features.indicators import calculate_rsi
+from etf_trend.features.indicators import calculate_rsi, calculate_macd, calculate_bollinger_bands
 from etf_trend.data.providers.yahoo_fundamentals import FundamentalData
 from etf_trend.ml.features import generate_features
 
@@ -324,6 +324,41 @@ class StockSelector:
         atr_df = calculate_atr(stock_prices, window=14)
         atr_latest = atr_df.loc[as_of_date] if as_of_date in atr_df.index else atr_df.iloc[-1]
 
+        # 8. 计算 MACD (Phase 5 新增)
+        macd_map = {}
+        for sym in available_stocks:
+            macd_df = calculate_macd(stock_prices[sym])
+            macd_map[sym] = macd_df["hist"].iloc[-1] if not macd_df.empty else 0.0
+
+        # 9. 计算 Bollinger Bands %B (Phase 5 新增)
+        bb_pct_map = {}
+        for sym in available_stocks:
+            bb_df = calculate_bollinger_bands(stock_prices[sym])
+            if not bb_df.empty:
+                upper = bb_df["upper"].iloc[-1]
+                lower = bb_df["lower"].iloc[-1]
+                current = stock_prices[sym].iloc[-1]
+                if upper != lower:
+                    bb_pct_map[sym] = (current - lower) / (upper - lower)
+                else:
+                    bb_pct_map[sym] = 0.5
+            else:
+                bb_pct_map[sym] = 0.5
+
+        # 10. 计算多均线 (MA20, MA50) (Phase 5 新增)
+        ma20 = stock_prices.rolling(20).mean()
+        ma50 = stock_prices.rolling(50).mean()
+        ma20_latest = ma20.loc[as_of_date] if as_of_date in ma20.index else ma20.iloc[-1]
+        ma50_latest = ma50.loc[as_of_date] if as_of_date in ma50.index else ma50.iloc[-1]
+
+        # 11. 计算短期涨幅 (5日) (Phase 5 新增 - 避免追高)
+        short_ret_map = {}
+        for sym in available_stocks:
+            if len(stock_prices[sym]) > 5:
+                short_ret_map[sym] = stock_prices[sym].pct_change(5).iloc[-1]
+            else:
+                short_ret_map[sym] = 0.0
+
         # ---------------------------------------------------------------------
         # 筛选候选股票
         # ---------------------------------------------------------------------
@@ -469,32 +504,77 @@ class StockSelector:
                     else:
                         score_ai_trend = 0.5 - 0.5 * min(1.0, r2)  # 趋势向下减分
 
-            # --- 5. 附加因子 (RSI & Sector) ---
+            # --- 5. 附加因子 (Phase 5 增强版) ---
             addon_score = 0.0
             reasons = []
 
-            # RSI Penalty/Bonus
+            # 获取新增指标值
+            macd_hist = macd_map.get(symbol, 0.0)
+            bb_pct = bb_pct_map.get(symbol, 0.5)
+            ma20_val = ma20_latest.get(symbol) if hasattr(ma20_latest, "get") else ma20_latest
+            ma50_val = ma50_latest.get(symbol) if hasattr(ma50_latest, "get") else ma50_latest
+            short_ret = short_ret_map.get(symbol, 0.0)
+
+            # --- 5.1 RSI Penalty/Bonus (改进版: 结合趋势方向) ---
+            # 如果在上升趋势中 (price > MA50)，RSI 高位不应惩罚太多
+            in_uptrend = price > ma50_val if pd.notna(ma50_val) else False
+
             if rsi_val > 75:
-                addon_score -= 0.15
-                reasons.append(f"RSI超买({rsi_val:.0f})")
+                if in_uptrend:
+                    addon_score -= 0.05  # 强趋势中 RSI 高位只轻微惩罚
+                    reasons.append(f"RSI偏高({rsi_val:.0f})")
+                else:
+                    addon_score -= 0.15  # 无趋势时惩罚更重
+                    reasons.append(f"RSI超买({rsi_val:.0f})")
             elif rsi_val < 30:
                 addon_score -= 0.1  # 趋势策略不喜欢超卖
                 reasons.append(f"RSI超卖({rsi_val:.0f})")
             elif 50 < rsi_val < 70:
                 addon_score += 0.05
 
-            # Sector Bonus
+            # --- 5.2 MACD Histogram ---
+            if macd_hist > 0:
+                addon_score += 0.05
+                if macd_hist > 0.5:  # 强信号
+                    reasons.append("MACD柱强势")
+            elif macd_hist < -0.5:
+                addon_score -= 0.05
+                reasons.append("MACD柱弱势")
+
+            # --- 5.3 Bollinger Bands %B ---
+            if bb_pct < 0.2:
+                addon_score += 0.05  # 接近下轨，可能反弹
+                reasons.append("接近布林下轨")
+            elif bb_pct > 0.9:
+                addon_score -= 0.05  # 接近上轨，谨慎
+                reasons.append("接近布林上轨")
+
+            # --- 5.4 多均线排列 ---
+            if pd.notna(ma20_val) and pd.notna(ma50_val) and pd.notna(ma_val):
+                if price > ma20_val > ma50_val > ma_val:
+                    addon_score += 0.1
+                    reasons.append("均线多头排列")
+                elif price < ma20_val < ma50_val < ma_val:
+                    addon_score -= 0.1
+                    reasons.append("均线空头排列")
+
+            # --- 5.5 避免追高 (5日涨幅过大) ---
+            if short_ret > 0.10:
+                addon_score -= 0.1
+                reasons.append(f"短期涨幅过大({short_ret*100:.1f}%)")
+            elif short_ret < -0.10:
+                addon_score += 0.05  # 短期回调可能是买点
+                reasons.append(f"短期回调({short_ret*100:.1f}%)")
+
+            # --- 5.6 Sector Bonus ---
             if stock_sector:
-                # 尝试匹配 sector name
-                # Yahoo sector name 可能和 keys 不完全一致，需要模糊匹配
-                # 简单处理：包含关键词
                 sec_mom = 0.0
                 for k, v in sector_mom_map.items():
-                    if k in stock_sector:  # e.g. "Technology" in "Technology"
+                    if k in stock_sector:
                         sec_mom = v
                         break
 
-                if sec_mom > 0.05:  # 板块动量 > 5% (20日)
+                if sec_mom > 0.05:
                     addon_score += 0.1
                     reasons.append("板块强势")
                 elif sec_mom < -0.05:
