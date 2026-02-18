@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 const API_BASE = "http://localhost:8000";
 
@@ -85,7 +86,15 @@ export default function MarketPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
-      <h1 className="text-3xl font-bold mb-8 text-white">🌍 市场状态</h1>
+      <div className="flex items-center justify-between gap-4 mb-8">
+        <h1 className="text-3xl font-bold text-white">🌍 市场状态</h1>
+        <Link
+          href="/trend-scan"
+          className="px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/20 transition-colors text-sm font-medium"
+        >
+          趋势扫描
+        </Link>
+      </div>
 
       {/* Main Status Card */}
       <div

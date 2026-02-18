@@ -88,6 +88,28 @@ universe:
     - JNJ # Johnson & Johnson
     - UNH # UnitedHealth
 
+  # 个股池构建模式:
+  # - static: 直接使用 stock_symbols
+  # - dynamic: 对候选池做流动性/价格/历史数据过滤（生产建议）
+  stock_universe_mode: dynamic
+
+  # dynamic 模式候选池（为空时回退到 stock_symbols）
+  dynamic_stock_symbols: []
+  # dynamic 模式外部候选池文件（前端 watch list 会写入）
+  dynamic_stock_symbols_file: cache/watchlist_symbols.txt
+
+  # dynamic 模式过滤参数
+  dynamic_min_history_days: 120
+  dynamic_min_price: 5.0
+  # averageVolume * latest_price 的最低成交额（美元）
+  dynamic_min_avg_dollar_volume: 20000000.0
+  # 过滤后最多保留多少只
+  dynamic_max_symbols: 300
+
+  # 规模分层指数成分文件
+  russell_2000_symbols_file: cache/index/russell2000.txt
+  russell_3000_symbols_file: cache/index/russell3000.txt
+
 # =============================================================================
 # 市场状态机参数 (Regime Engine)
 # =============================================================================

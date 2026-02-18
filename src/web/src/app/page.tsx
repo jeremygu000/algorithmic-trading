@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function Home() {
@@ -58,8 +59,8 @@ export default function Home() {
       </div>
 
       {/* Quick Links */}
-      <div className="grid md:grid-cols-3 gap-6 mb-20">
-        <a
+      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 mb-20">
+        <Link
           href="/market"
           className="group relative p-8 bg-slate-900 rounded-2xl border border-slate-800 hover:border-sky-500/50 transition-all hover:shadow-2xl hover:shadow-sky-500/10 overflow-hidden"
         >
@@ -77,9 +78,30 @@ export default function Home() {
               实时监控市场情绪 (Risk On/Off)，查看风险预算分配与关键市场信号。
             </p>
           </div>
-        </a>
+        </Link>
 
-        <a
+        <Link
+          href="/trend-scan"
+          className="group relative p-8 bg-slate-900 rounded-2xl border border-slate-800 hover:border-emerald-500/50 transition-all hover:shadow-2xl hover:shadow-emerald-500/10 overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <span className="text-8xl">📡</span>
+          </div>
+          <div className="relative z-10">
+            <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
+              📡
+            </div>
+            <h3 className="text-xl font-bold mb-3 text-slate-200 group-hover:text-emerald-400 transition-colors">
+              趋势扫描
+            </h3>
+            <p className="text-slate-400 leading-relaxed">
+              按连续上涨/下跌形态自动扫描股票池，快速定位近 K
+              日强势或弱势标的。
+            </p>
+          </div>
+        </Link>
+
+        <Link
           href="/picks"
           className="group relative p-8 bg-slate-900 rounded-2xl border border-slate-800 hover:border-blue-500/50 transition-all hover:shadow-2xl hover:shadow-blue-500/10 overflow-hidden"
         >
@@ -98,9 +120,9 @@ export default function Home() {
               筛选的高动量个股列表，包含激进/稳健/保守三级买入方案与动态止损位。
             </p>
           </div>
-        </a>
+        </Link>
 
-        <a
+        <Link
           href="/stock/AAPL"
           className="group relative p-8 bg-slate-900 rounded-2xl border border-slate-800 hover:border-cyan-500/50 transition-all hover:shadow-2xl hover:shadow-cyan-500/10 overflow-hidden"
         >
@@ -119,7 +141,7 @@ export default function Home() {
               线图表，集成均线系统与关键支撑阻力位，提供完整的技术面诊断。
             </p>
           </div>
-        </a>
+        </Link>
       </div>
 
       {/* Popular Stocks */}
@@ -140,13 +162,13 @@ export default function Home() {
             "PLTR",
             "COIN",
           ].map((s) => (
-            <a
+            <Link
               key={s}
               href={`/stock/${s}`}
               className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-sky-500/30 rounded-lg text-sm font-medium text-slate-300 hover:text-sky-400 transition-all"
             >
               {s}
-            </a>
+            </Link>
           ))}
         </div>
       </div>

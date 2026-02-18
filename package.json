@@ -12,6 +12,7 @@
     "lint:fix": "uv run ruff check src/etf_trend/ --fix",
     "format": "uv run black src/etf_trend/",
     "format:check": "uv run black src/etf_trend/ --check",
+    "refresh:daily": "uv run python -m etf_trend.scripts.daily_refresh --once",
     "check": "npm run lint && npm run format:check && npm run test"
   },
   "devDependencies": {

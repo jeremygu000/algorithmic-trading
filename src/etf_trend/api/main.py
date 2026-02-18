@@ -21,13 +21,17 @@ from __future__ import annotations
 import base64
 import io
 from datetime import date, timedelta
+from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 import pandas as pd
 import numpy as np
-import mplfinance as mpf
 import matplotlib
+from pydantic import BaseModel, Field
 
+# 服务端绘图使用非交互后端，避免线程环境触发 GUI backend 错误
+matplotlib.use("Agg")
+import mplfinance as mpf
 # 配置中文字体 (macOS)
 matplotlib.rcParams["font.sans-serif"] = ["PingFang SC", "Arial Unicode MS", "SimHei"]
 matplotlib.rcParams["axes.unicode_minus"] = False
@@ -41,12 +45,80 @@ from etf_trend.features.indicators import calculate_rsi, calculate_macd, calcula
 from etf_trend.data.providers.yahoo_fundamentals import load_yahoo_fundamentals
 from etf_trend.features.pattern_match import find_similar_patterns
 from etf_trend.features.trend_pred import predict_next_trend
+from etf_trend.api.services import (
+    TrendScannerService,
+    StockUniverseBuilder,
+    add_symbol_to_file,
+    read_symbol_file,
+    remove_symbol_from_file,
+    resolve_symbol_file,
+)
 
 # 获取配置
 from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = PACKAGE_ROOT / "configs" / "default.yaml"
+
+# =============================================================================
+# Picks 筛选配置
+# =============================================================================
+
+PickSizeBucket = Literal["all", "large", "small"]
+PICKS_TIINGO_MAX_SYMBOLS = 60
+PICKS_AI_MAX_SYMBOLS = 40
+
+PICK_SIZE_ALIASES: dict[str, PickSizeBucket] = {
+    "all": "all",
+    "全部": "all",
+    "large": "large",
+    "大盘": "large",
+    "大盘股": "large",
+    "small": "small",
+    "小盘": "small",
+    "小盘股": "small",
+}
+PICK_SIZE_LABEL: dict[PickSizeBucket, str] = {
+    "all": "全部",
+    "large": "大盘股",
+    "small": "小盘股",
+}
+
+
+def _normalize_pick_size(size: str) -> PickSizeBucket:
+    normalized = PICK_SIZE_ALIASES.get(size.strip().lower())
+    if normalized is None:
+        raise ValueError("size 参数仅支持 all/large/small 或 全部/大盘股/小盘股")
+    return normalized
+
+
+def _filter_stock_pool_by_size(
+    stock_pool: list[str],
+    size: PickSizeBucket,
+    russell_2000_symbols: set[str],
+    russell_3000_symbols: set[str],
+) -> list[str]:
+    if size == "all":
+        return stock_pool
+
+    if not russell_2000_symbols:
+        raise ValueError("Russell 2000 成分文件为空，请先运行刷新脚本")
+
+    filtered: list[str] = []
+    for sym in stock_pool:
+        in_r2000 = sym in russell_2000_symbols
+        in_r3000 = sym in russell_3000_symbols if russell_3000_symbols else True
+
+        if size == "large" and in_r3000 and not in_r2000:
+            filtered.append(sym)
+        elif size == "small" and in_r2000:
+            filtered.append(sym)
+
+    return filtered
+
+
+class WatchlistSymbolPayload(BaseModel):
+    symbol: str = Field(min_length=1, max_length=15)
 
 # =============================================================================
 # FastAPI 应用
@@ -84,7 +156,9 @@ async def root():
         "endpoints": {
             "/api/stock/{symbol}": "查询单个股票分析 (含蜡烛图)",
             "/api/market": "查询市场状态",
-            "/api/picks": "获取今日推荐个股列表",
+            "/api/picks": "获取今日推荐个股列表 (支持 size=all|large|small)",
+            "/api/watchlist": "动态观察列表增删查",
+            "/api/stocks/trend-scan": "扫描最近 K 日连续上涨/下跌形态的股票",
         },
     }
 
@@ -158,17 +232,20 @@ async def analyze_stock(symbol: str, days: int = 90):
     try:
         symbol = symbol.upper()
         cfg = load_config(str(DEFAULT_CONFIG))
-        env = EnvSettings()
 
         end_date = date.today()
         start_date = end_date - timedelta(days=365)
+
+        # 个股详情页是高频交互接口，优先保证响应速度。
+        # 避免 Tiingo 429 退避导致页面长时间等待，这里直接走 Yahoo 路径。
+        stock_tiingo_api_key: str | None = None
 
         # 获取价格数据
         prices = load_prices_with_fallback(
             [symbol] + cfg.universe.equity_symbols,
             str(start_date),
             str(end_date),
-            env.tiingo_api_key,
+            stock_tiingo_api_key,
             cache_enabled=cfg.cache.enabled,
             cache_dir=cfg.cache.dir,
         )
@@ -484,33 +561,103 @@ async def analyze_stock(symbol: str, days: int = 90):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/watchlist")
+async def get_watchlist():
+    """获取动态观察列表（来源于 dynamic_stock_symbols_file）。"""
+    try:
+        cfg = load_config(str(DEFAULT_CONFIG))
+        file_path = cfg.universe.dynamic_stock_symbols_file
+        symbols = read_symbol_file(file_path)
+        return {
+            "file": str(resolve_symbol_file(file_path)),
+            "count": len(symbols),
+            "symbols": symbols,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/watchlist")
+async def add_watchlist_symbol(payload: WatchlistSymbolPayload):
+    """向动态观察列表添加股票代码。"""
+    try:
+        cfg = load_config(str(DEFAULT_CONFIG))
+        file_path = cfg.universe.dynamic_stock_symbols_file
+        symbols = add_symbol_to_file(file_path, payload.symbol)
+        return {
+            "file": str(resolve_symbol_file(file_path)),
+            "count": len(symbols),
+            "symbols": symbols,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/watchlist/{symbol}")
+async def delete_watchlist_symbol(symbol: str):
+    """从动态观察列表删除股票代码。"""
+    try:
+        cfg = load_config(str(DEFAULT_CONFIG))
+        file_path = cfg.universe.dynamic_stock_symbols_file
+        symbols = remove_symbol_from_file(file_path, symbol)
+        return {
+            "file": str(resolve_symbol_file(file_path)),
+            "count": len(symbols),
+            "symbols": symbols,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/picks")
-async def get_stock_picks():
+async def get_stock_picks(
+    size: str = Query(
+        default="all",
+        description="规模筛选: all/large/small 或 全部/大盘股/小盘股（基于 Russell 2000/3000）",
+    )
+):
     """
     获取今日推荐个股列表
 
     返回推荐的所有个股及其多级价位
     """
     try:
+        pick_size = _normalize_pick_size(size)
+
         cfg = load_config(str(DEFAULT_CONFIG))
         env = EnvSettings()
 
         end_date = date.today()
         start_date = end_date - timedelta(days=365)
 
+        universe_builder = StockUniverseBuilder(cfg)
+        base_stock_pool = universe_builder.base_candidates()
+
         all_symbols = (
             cfg.universe.equity_symbols
             + cfg.universe.defensive_symbols
-            + StockSelector.DEFAULT_STOCK_POOL
+            + base_stock_pool
             + list(StockSelector.SECTOR_ETF_MAP.values())
         )
         all_symbols = list(set(all_symbols))
+
+        # Tiingo 免费版在批量请求时容易触发 429 限流，导致前端长时间等待。
+        # 对 picks 这类大批量接口直接走 Yahoo，可显著降低首屏等待时间。
+        tiingo_api_key = (
+            env.tiingo_api_key
+            if cfg.providers.tiingo.enabled and len(all_symbols) <= PICKS_TIINGO_MAX_SYMBOLS
+            else None
+        )
 
         prices = load_prices_with_fallback(
             all_symbols,
             str(start_date),
             str(end_date),
-            env.tiingo_api_key,
+            tiingo_api_key,
             cache_enabled=cfg.cache.enabled,
             cache_dir=cfg.cache.dir,
         )
@@ -525,29 +672,55 @@ async def get_stock_picks():
             prices, vix=None, market_symbol=cfg.universe.market_benchmark
         )
 
+        available_stocks = [s for s in base_stock_pool if s in prices.columns]
+        fundamentals_all = load_yahoo_fundamentals(
+            available_stocks, cache_enabled=cfg.cache.enabled, cache_dir=cfg.cache.dir
+        )
+        universe_result = universe_builder.build(prices=prices, fundamentals=fundamentals_all)
+
+        russell_2000_symbols = set(read_symbol_file(cfg.universe.russell_2000_symbols_file))
+        russell_3000_symbols = set(read_symbol_file(cfg.universe.russell_3000_symbols_file))
+        filtered_stock_pool = _filter_stock_pool_by_size(
+            universe_result.symbols,
+            pick_size,
+            russell_2000_symbols=russell_2000_symbols,
+            russell_3000_symbols=russell_3000_symbols,
+        )
+
+        if not filtered_stock_pool:
+            return {
+                "date": str(end_date),
+                "regime": regime_state.regime,
+                "risk_budget": regime_state.risk_budget,
+                "size": pick_size,
+                "size_label": PICK_SIZE_LABEL[pick_size],
+                "universe_mode": universe_result.mode,
+                "universe_input_count": universe_result.input_count,
+                "universe_selected_count": universe_result.output_count,
+                "russell2000_count": len(russell_2000_symbols),
+                "russell3000_count": len(russell_3000_symbols),
+                "eligible_stock_count": 0,
+                "is_active": regime_state.regime == "RISK_ON",
+                "message": (
+                    f"当前股票池在筛选范围【{PICK_SIZE_LABEL[pick_size]}】下无可用标的。"
+                    "建议扩大候选池或更新 Russell 指数成分文件。"
+                ),
+                "picks": [],
+            }
+
         selector = StockSelector(
+            stock_pool=filtered_stock_pool,
             mom_windows=cfg.signal.mom_windows,
             mom_weights=cfg.signal.mom_weights,
             vol_lookback=cfg.risk.vol_lookback,
         )
 
-        # 加载所有股票的基本面数据
-        available_stocks = [s for s in all_symbols if s in prices.columns]
-        fundamentals = load_yahoo_fundamentals(
-            available_stocks, cache_enabled=cfg.cache.enabled, cache_dir=cfg.cache.dir
-        )
-
         # 批量进行 AI 预测
         ai_analysis_map = {}
-        # 为了性能，限制 AI 预测的股票数量，或者只对初步筛选的做预测？
-        # 由于我们这里是 select 逻辑，所有候选股都需要有分数。
-        # 优化：先允许所有，如果慢再优化。
+        ai_symbols = filtered_stock_pool[:PICKS_AI_MAX_SYMBOLS]
 
-        # 只计算在 prices 中的股票
-        for sym in available_stocks:
-            if sym not in prices.columns:
-                continue
-
+        # 只对筛选后的前 N 只股票做 AI 预测，其余股票使用中性 AI 分数。
+        for sym in ai_symbols:
             series = prices[sym].dropna()
             if len(series) < 80:  # 需要足够数据
                 continue
@@ -563,7 +736,7 @@ async def get_stock_picks():
             prices,
             regime_state,
             use_fundamental=True,
-            fundamentals=fundamentals,
+            fundamentals=fundamentals_all,
             ai_analysis=ai_analysis_map,
         )
 
@@ -576,10 +749,46 @@ async def get_stock_picks():
             "date": str(end_date),
             "regime": regime_state.regime,
             "risk_budget": regime_state.risk_budget,
+            "size": pick_size,
+            "size_label": PICK_SIZE_LABEL[pick_size],
+            "universe_mode": universe_result.mode,
+            "universe_input_count": universe_result.input_count,
+            "universe_selected_count": universe_result.output_count,
+            "russell2000_count": len(russell_2000_symbols),
+            "russell3000_count": len(russell_3000_symbols),
+            "eligible_stock_count": len(filtered_stock_pool),
+            "ai_analyzed_count": len(ai_analysis_map),
             "is_active": result.is_active,
-            "message": result.message,
+            "message": f"{result.message}（筛选范围: {PICK_SIZE_LABEL[pick_size]}）",
             "picks": [plan.to_dict() for plan in trade_plans],
         }
 
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/stocks/trend-scan")
+async def scan_stocks_by_trend(
+    k: int = Query(default=5, ge=1, description="连续形态天数，默认 5"),
+    t: str = Query(default="up", description="趋势方向: up/down 或 上涨/下跌"),
+):
+    """
+    扫描最近 K 个交易日连续上涨/下跌的股票列表
+
+    参数:
+    - k: 连续天数，默认 5
+    - t: 趋势方向，支持 up/down 或 上涨/下跌
+    """
+    try:
+        cfg = load_config(str(DEFAULT_CONFIG))
+        env = EnvSettings()
+
+        scanner = TrendScannerService(cfg, env.tiingo_api_key)
+        result = scanner.scan(k=k, t=t)
+        return result.to_dict()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

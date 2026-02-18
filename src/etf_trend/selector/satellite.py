@@ -209,7 +209,9 @@ class StockSelector:
             top_n: 返回 Top-N 只股票
             ml_model: 机器学习模型实例 (MLScorer)
         """
-        self.stock_pool = stock_pool or self.DEFAULT_STOCK_POOL
+        # 注意：允许传入空列表（例如 API 的筛选后无可用股票），
+        # 仅当 stock_pool 为 None 时才回退到默认股票池。
+        self.stock_pool = stock_pool if stock_pool is not None else self.DEFAULT_STOCK_POOL
         self.ma_window = ma_window
         self.mom_windows = mom_windows or [20, 60, 120]
         self.mom_weights = mom_weights or [0.33, 0.34, 0.33]

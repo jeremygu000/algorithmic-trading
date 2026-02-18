@@ -76,6 +76,32 @@ class UniverseCfg(BaseModel):
     # 兼容旧配置：如果有 symbols 字段
     symbols: list[str] = []
 
+    # 个股池（用于个股扫描/推荐）
+    stock_symbols: list[str] = []
+
+    # 股票池构建模式
+    # static: 直接使用 stock_symbols
+    # dynamic: 从候选池中按流动性/价格/历史数据过滤
+    stock_universe_mode: Literal["static", "dynamic"] = "static"
+
+    # dynamic 模式候选池（为空时回退到 stock_symbols）
+    dynamic_stock_symbols: list[str] = []
+    # dynamic 模式外部候选池文件（支持前端 watchlist 动态写入）
+    dynamic_stock_symbols_file: str = "cache/watchlist_symbols.txt"
+
+    # dynamic 模式过滤参数
+    dynamic_min_history_days: int = 120
+    dynamic_min_price: float = 5.0
+    # 平均成交额阈值（美元）= averageVolume * latest_price
+    dynamic_min_avg_dollar_volume: float = 20_000_000.0
+    dynamic_max_symbols: int = 300
+
+    # 市值分层参考指数成分文件
+    # small: Russell 2000 成分股
+    # large: Russell 3000 中剔除 Russell 2000 后的剩余部分（近似 Russell 1000）
+    russell_2000_symbols_file: str = "cache/index/russell2000.txt"
+    russell_3000_symbols_file: str = "cache/index/russell3000.txt"
+
 
 class RegimeCfg(BaseModel):
     """

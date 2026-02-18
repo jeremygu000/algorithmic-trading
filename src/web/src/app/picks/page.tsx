@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 const API_BASE = "http://localhost:8000";
+type PickSizeFilter = "all" | "large" | "small";
 
 interface TradePlan {
   symbol: string;
@@ -30,22 +32,138 @@ interface PicksData {
   date: string;
   regime: string;
   risk_budget: number;
+  size: PickSizeFilter;
+  size_label: string;
+  eligible_stock_count: number;
   is_active: boolean;
   message: string;
   picks: TradePlan[];
+}
+
+interface WatchlistData {
+  count: number;
+  symbols: string[];
 }
 
 export default function PicksPage() {
   const [data, setData] = useState<PicksData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sizeFilter, setSizeFilter] = useState<PickSizeFilter>("all");
+  const [watchlist, setWatchlist] = useState<string[]>([]);
+  const [watchInput, setWatchInput] = useState("");
+  const [watchLoading, setWatchLoading] = useState(false);
+  const [watchError, setWatchError] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
+
+  const handleFilterChange = (nextFilter: PickSizeFilter) => {
+    if (nextFilter === sizeFilter) return;
+    setLoading(true);
+    setError(null);
+    setSizeFilter(nextFilter);
+  };
+
+  const loadWatchlist = () => {
+    fetch(`${API_BASE}/api/watchlist`)
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(body?.detail || "加载 watch list 失败");
+        }
+        return res.json() as Promise<WatchlistData>;
+      })
+      .then((res) => setWatchlist(res.symbols || []))
+      .catch((e: unknown) => {
+        setWatchError(e instanceof Error ? e.message : "加载 watch list 失败");
+      });
+  };
+
+  const addWatchSymbol = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!watchInput.trim()) return;
+    setWatchLoading(true);
+    setWatchError(null);
+
+    fetch(`${API_BASE}/api/watchlist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol: watchInput.trim().toUpperCase() }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(body?.detail || "添加失败");
+        }
+        return res.json() as Promise<WatchlistData>;
+      })
+      .then((res) => {
+        setWatchlist(res.symbols || []);
+        setWatchInput("");
+        setReloadTick((n) => n + 1);
+      })
+      .catch((e: unknown) => {
+        setWatchError(e instanceof Error ? e.message : "添加失败");
+      })
+      .finally(() => setWatchLoading(false));
+  };
+
+  const removeWatchSymbol = (symbol: string) => {
+    setWatchLoading(true);
+    setWatchError(null);
+
+    fetch(`${API_BASE}/api/watchlist/${symbol}`, { method: "DELETE" })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(body?.detail || "删除失败");
+        }
+        return res.json() as Promise<WatchlistData>;
+      })
+      .then((res) => {
+        setWatchlist(res.symbols || []);
+        setReloadTick((n) => n + 1);
+      })
+      .catch((e: unknown) => {
+        setWatchError(e instanceof Error ? e.message : "删除失败");
+      })
+      .finally(() => setWatchLoading(false));
+  };
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/picks`)
-      .then((res) => res.json())
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 45000);
+
+    fetch(`${API_BASE}/api/picks?size=${sizeFilter}`, {
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as { detail?: string } | null;
+          throw new Error(body?.detail || "加载推荐失败");
+        }
+        return res.json() as Promise<PicksData>;
+      })
       .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch((e: unknown) => {
+        if (e instanceof Error && e.name === "AbortError") {
+          setError("请求超时（45秒），请稍后重试或缩小筛选范围");
+          return;
+        }
+        setError(e instanceof Error ? e.message : "未知错误");
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId);
+        setLoading(false);
+      });
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [sizeFilter, reloadTick]);
+
+  useEffect(() => {
+    loadWatchlist();
   }, []);
 
   if (loading) {
@@ -85,6 +203,102 @@ export default function PicksPage() {
         </div>
       </div>
 
+      {/* Watch List */}
+      <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 mb-6">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-slate-300 font-medium">
+              Watch List (动态候选池)
+            </div>
+            <div className="text-xs text-slate-500">
+              当前 {watchlist.length} 只
+            </div>
+          </div>
+
+          <form onSubmit={addWatchSymbol} className="flex gap-2">
+            <input
+              value={watchInput}
+              onChange={(e) => setWatchInput(e.target.value.toUpperCase())}
+              placeholder="输入股票代码，例如 PLTR"
+              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500"
+            />
+            <button
+              type="submit"
+              disabled={watchLoading}
+              className="px-3 py-2 rounded-lg bg-sky-500/20 border border-sky-500/30 text-sky-300 text-sm hover:bg-sky-500/30 disabled:opacity-50"
+            >
+              添加
+            </button>
+          </form>
+
+          {watchError && <div className="text-xs text-rose-400">{watchError}</div>}
+
+          <div className="flex flex-wrap gap-2">
+            {watchlist.length > 0 ? (
+              watchlist.map((sym) => (
+                <span
+                  key={sym}
+                  className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-200"
+                >
+                  {sym}
+                  <button
+                    type="button"
+                    disabled={watchLoading}
+                    onClick={() => removeWatchSymbol(sym)}
+                    className="text-rose-400 hover:text-rose-300 disabled:opacity-50"
+                    aria-label={`remove-${sym}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))
+            ) : (
+              <div className="text-xs text-slate-500">暂无 watch list 标的</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Filter */}
+      <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 mb-6">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm text-slate-400">规模筛选 (Russell)</span>
+          <button
+            type="button"
+            onClick={() => handleFilterChange("all")}
+            className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+              sizeFilter === "all"
+                ? "bg-sky-500/20 border-sky-500/30 text-sky-300"
+                : "bg-slate-800 border-slate-700 text-slate-400 hover:text-sky-300"
+            }`}
+          >
+            全部
+          </button>
+          <button
+            type="button"
+            onClick={() => handleFilterChange("large")}
+            className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+              sizeFilter === "large"
+                ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-300"
+                : "bg-slate-800 border-slate-700 text-slate-400 hover:text-emerald-300"
+            }`}
+          >
+            大盘股
+          </button>
+          <button
+            type="button"
+            onClick={() => handleFilterChange("small")}
+            className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+              sizeFilter === "small"
+                ? "bg-amber-500/20 border-amber-500/30 text-amber-300"
+                : "bg-slate-800 border-slate-700 text-slate-400 hover:text-amber-300"
+            }`}
+          >
+            小盘股
+          </button>
+        </div>
+      </div>
+
       {/* Status Banner */}
       <div
         className={`rounded-xl p-4 mb-10 border ${
@@ -99,6 +313,13 @@ export default function PicksPage() {
           </span>
           <div>
             <div className="font-semibold mb-1">系统状态: {data?.regime}</div>
+            <div className="text-xs opacity-80 mb-1">
+              当前范围: {data?.size_label || "全部"} | 可参与筛选:
+              {" "}
+              {data?.eligible_stock_count ?? 0}
+              {" "}
+              只
+            </div>
             <div className="text-sm opacity-90">{data?.message}</div>
           </div>
         </div>
@@ -108,7 +329,7 @@ export default function PicksPage() {
       {data?.picks && data.picks.length > 0 ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-6">
           {data.picks.map((pick, idx) => (
-            <a
+            <Link
               key={pick.symbol}
               href={`/stock/${pick.symbol}`}
               className="bg-slate-900 block rounded-xl border border-slate-800 hover:border-sky-500 transition-all duration-300 group hover:shadow-xl hover:shadow-sky-500/10"
@@ -167,7 +388,7 @@ export default function PicksPage() {
                   </div>
                 </div>
               </div>
-            </a>
+            </Link>
           ))}
         </div>
       ) : (

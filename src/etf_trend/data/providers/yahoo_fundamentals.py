@@ -19,6 +19,7 @@ class FundamentalData(TypedDict):
     debtToEquity: float | None
     earningsGrowth: float | None
     marketCap: int | None
+    averageVolume: int | None
     sector: str | None
 
 
@@ -61,7 +62,11 @@ def load_yahoo_fundamentals(
                 try:
                     with open(json_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                        result[sym] = data
+                        # 旧缓存可能缺少新增字段，触发回源刷新
+                        if "averageVolume" not in data:
+                            missing.append(sym)
+                        else:
+                            result[sym] = data
                 except Exception:
                     missing.append(sym)
             else:
@@ -91,6 +96,7 @@ def load_yahoo_fundamentals(
                 "debtToEquity": info.get("debtToEquity"),
                 "earningsGrowth": info.get("earningsGrowth"),
                 "marketCap": info.get("marketCap"),
+                "averageVolume": info.get("averageVolume"),
                 "sector": info.get("sector"),
             }
 
@@ -122,6 +128,7 @@ def load_yahoo_fundamentals(
                 "debtToEquity": None,
                 "earningsGrowth": None,
                 "marketCap": None,
+                "averageVolume": None,
                 "sector": None,
             }
 

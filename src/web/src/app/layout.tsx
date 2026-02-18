@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,37 +19,43 @@ export default function RootLayout({
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center space-x-8">
-                <a
+                <Link
                   href="/"
                   className="text-xl font-bold bg-gradient-to-r from-sky-400 to-cyan-400 bg-clip-text text-transparent"
                 >
                   📈 ETF Trend
-                </a>
+                </Link>
                 <div className="flex space-x-4">
-                  <a
+                  <Link
                     href="/"
                     className="text-slate-400 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                   >
                     首页
-                  </a>
-                  <a
+                  </Link>
+                  <Link
                     href="/market"
                     className="text-slate-400 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                   >
                     市场状态
-                  </a>
-                  <a
+                  </Link>
+                  <Link
+                    href="/trend-scan"
+                    className="text-slate-400 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                  >
+                    趋势扫描
+                  </Link>
+                  <Link
                     href="/picks"
                     className="text-slate-400 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                   >
                     个股推荐
-                  </a>
-                  <a
+                  </Link>
+                  <Link
                     href="/stock/AAPL"
                     className="text-slate-400 hover:text-sky-400 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                   >
                     股票分析
-                  </a>
+                  </Link>
                 </div>
               </div>
             </div>
