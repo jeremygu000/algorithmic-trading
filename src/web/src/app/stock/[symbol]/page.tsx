@@ -21,7 +21,6 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
-import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 
 const API_BASE = "http://localhost:8300";
@@ -459,32 +458,29 @@ function CandlestickChartInline({
 
 function LoadingSkeleton({ symbol }: { symbol: string }) {
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar />
-      <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-        <HeroBanner
-          title="ETF Trend"
-          subtitle="股票分析"
-          description={`${symbol} 深度技术面分析与交易计划`}
-        />
-        <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5 }}>
-          <Box sx={{ mb: 5, pb: 4, borderBottom: "1px solid", borderColor: "divider" }}>
-            <Skeleton variant="rounded" height={48} width="40%" sx={{ borderRadius: 2, mb: 1 }} />
-            <Skeleton variant="rounded" height={20} width="25%" sx={{ borderRadius: 2 }} />
-          </Box>
-          <Skeleton variant="rounded" height={64} sx={{ borderRadius: 3, mb: 4 }} />
-          <Skeleton variant="rounded" height={420} sx={{ borderRadius: 3, mb: 4 }} />
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "2fr 1fr" }, gap: 4 }}>
-            <Skeleton variant="rounded" height={240} sx={{ borderRadius: 3 }} />
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              <Skeleton variant="rounded" height={140} sx={{ borderRadius: 3 }} />
-              <Skeleton variant="rounded" height={140} sx={{ borderRadius: 3 }} />
-              <Skeleton variant="rounded" height={140} sx={{ borderRadius: 3 }} />
-            </Box>
+    <>
+      <HeroBanner
+        title="ETF Trend"
+        subtitle="股票分析"
+        description={`${symbol} 深度技术面分析与交易计划`}
+      />
+      <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5 }}>
+        <Box sx={{ mb: 5, pb: 4, borderBottom: "1px solid", borderColor: "divider" }}>
+          <Skeleton variant="rounded" height={48} width="40%" sx={{ borderRadius: 2, mb: 1 }} />
+          <Skeleton variant="rounded" height={20} width="25%" sx={{ borderRadius: 2 }} />
+        </Box>
+        <Skeleton variant="rounded" height={64} sx={{ borderRadius: 3, mb: 4 }} />
+        <Skeleton variant="rounded" height={420} sx={{ borderRadius: 3, mb: 4 }} />
+        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "2fr 1fr" }, gap: 4 }}>
+          <Skeleton variant="rounded" height={240} sx={{ borderRadius: 3 }} />
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <Skeleton variant="rounded" height={140} sx={{ borderRadius: 3 }} />
+            <Skeleton variant="rounded" height={140} sx={{ borderRadius: 3 }} />
+            <Skeleton variant="rounded" height={140} sx={{ borderRadius: 3 }} />
           </Box>
         </Box>
       </Box>
-    </Box>
+    </>
   );
 }
 
@@ -542,37 +538,32 @@ export default function StockPage() {
 
   if (error) {
     return (
-      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-        <Sidebar />
-        <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-          <Box sx={{ maxWidth: 800, mx: "auto", px: 4, py: 12 }}>
-            <Box
-              sx={{
-                bgcolor: "rgba(159,18,57,0.12)",
-                border: "1px solid rgba(159,18,57,0.25)",
-                borderRadius: 3,
-                p: 6,
-                textAlign: "center",
-              }}
-            >
-              <Typography variant="h6" sx={{ color: "error.light", mb: 1, fontWeight: 600 }}>
-                查询失败
-              </Typography>
-              <Typography sx={{ color: "text.secondary", mb: 4 }}>{error}</Typography>
-              <Button
-                component={Link}
-                href="/"
-                variant="outlined"
-                sx={{
-                  borderColor: "divider",
-                  color: "text.primary",
-                  "&:hover": { bgcolor: "action.hover" },
-                }}
-              >
-                返回首页
-              </Button>
-            </Box>
-          </Box>
+      <Box sx={{ maxWidth: 800, mx: "auto", px: 4, py: 12 }}>
+        <Box
+          sx={{
+            bgcolor: "rgba(159,18,57,0.12)",
+            border: "1px solid rgba(159,18,57,0.25)",
+            borderRadius: 3,
+            p: 6,
+            textAlign: "center",
+          }}
+        >
+          <Typography variant="h6" sx={{ color: "error.light", mb: 1, fontWeight: 600 }}>
+            查询失败
+          </Typography>
+          <Typography sx={{ color: "text.secondary", mb: 4 }}>{error}</Typography>
+          <Button
+            component={Link}
+            href="/"
+            variant="outlined"
+            sx={{
+              borderColor: "divider",
+              color: "text.primary",
+              "&:hover": { bgcolor: "action.hover" },
+            }}
+          >
+            返回首页
+          </Button>
         </Box>
       </Box>
     );
@@ -583,16 +574,14 @@ export default function StockPage() {
   const chipSx = recommendationChipSx[data.recommendation] ?? recommendationChipSx["观望"];
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar />
-      <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-        <HeroBanner
-          title="ETF Trend"
-          subtitle="股票分析"
-          description={`${symbol} 深度技术面分析与交易计划`}
-        />
+    <>
+      <HeroBanner
+        title="ETF Trend"
+        subtitle="股票分析"
+        description={`${symbol} 深度技术面分析与交易计划`}
+      />
 
-        <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5 }}>
+      <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5 }}>
           <Box
             sx={{
               display: "flex",
@@ -1123,10 +1112,9 @@ export default function StockPage() {
                   </Box>
                 </CardContent>
               </Card>
-            </Box>
           </Box>
         </Box>
       </Box>
-    </Box>
+    </>
   );
 }

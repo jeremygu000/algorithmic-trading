@@ -56,7 +56,9 @@ class TestStrategySimulator:
     def test_run_returns_backtest_result(self, mock_prices):
         """Test that run() returns a BacktestResult."""
         sim = StrategySimulator(
-            prices=mock_prices, stock_pool=["AAPL", "MSFT", "NVDA"], rebalance_freq="ME"  # Monthly
+            prices=mock_prices,
+            stock_pool=["AAPL", "MSFT", "NVDA"],
+            rebalance_freq="ME",  # Monthly
         )
 
         result = sim.run("2023-01-01", "2023-03-31")

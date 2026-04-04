@@ -221,10 +221,10 @@ def _generate_pdf(
 风险预算: {regime_state.risk_budget * 100:.0f}%
 
 信号详情:
-  {signals['market_symbol']} 价格: {signals['price']:.2f}
-  MA200: {signals['ma200']:.2f}
-  趋势: {'在均线之上' if signals['trend_above_ma'] else '在均线之下'}
-  60天动量: {signals['momentum_60d']:.1f}%
+  {signals["market_symbol"]} 价格: {signals["price"]:.2f}
+  MA200: {signals["ma200"]:.2f}
+  趋势: {"在均线之上" if signals["trend_above_ma"] else "在均线之下"}
+  60天动量: {signals["momentum_60d"]:.1f}%
 """
         ax1.text(
             0.1,
@@ -478,15 +478,15 @@ def _generate_pdf(
 ## 市场状态
 - 当前状态: {regime_icons.get(regime_state.regime)}
 - 风险预算: {regime_state.risk_budget * 100:.0f}%
-- {signals['market_symbol']} 价格: {signals['price']:.2f} (MA200: {signals['ma200']:.2f})
-- 60天动量: {signals['momentum_60d']:.1f}%
+- {signals["market_symbol"]} 价格: {signals["price"]:.2f} (MA200: {signals["ma200"]:.2f})
+- 60天动量: {signals["momentum_60d"]:.1f}%
 
 ## 推荐配置
 股票类 ETF (总计 {sum(allocation_result.equity_weights.values()) * 100:.1f}%):
-{chr(10).join([f'  - {s}: {w*100:.1f}%' for s, w in sorted(allocation_result.equity_weights.items(), key=lambda x: -x[1])])}
+{chr(10).join([f"  - {s}: {w * 100:.1f}%" for s, w in sorted(allocation_result.equity_weights.items(), key=lambda x: -x[1])])}
 
 防守类 ETF (总计 {sum(allocation_result.defensive_weights.values()) * 100:.1f}%):
-{chr(10).join([f'  - {s}: {w*100:.1f}%' for s, w in sorted(allocation_result.defensive_weights.items(), key=lambda x: -x[1])])}
+{chr(10).join([f"  - {s}: {w * 100:.1f}%" for s, w in sorted(allocation_result.defensive_weights.items(), key=lambda x: -x[1])])}
 
 ## 请分析
 1. 当前市场状态的含义

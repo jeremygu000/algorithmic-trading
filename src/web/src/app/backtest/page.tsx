@@ -15,7 +15,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 import {
   AreaChart,
@@ -642,26 +641,24 @@ export default function BacktestPage() {
   const calmar = bs["Calmar"] ?? bs["calmar"] ?? null;
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar />
-      <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-        <HeroBanner
-          title="ETF Trend"
-          subtitle="策略回测"
-          description="ETF 趋势策略回测 · 净值曲线 · 回撤分析 · 交易明细"
-        />
+    <>
+      <HeroBanner
+        title="ETF Trend"
+        subtitle="策略回测"
+        description="ETF 趋势策略回测 · 净值曲线 · 回撤分析 · 交易明细"
+      />
 
-        <Box
-          sx={{
-            maxWidth: 1100,
-            mx: "auto",
-            px: 4,
-            py: 5,
-            display: "flex",
-            flexDirection: "column",
-            gap: 4,
-          }}
-        >
+      <Box
+        sx={{
+          maxWidth: 1100,
+          mx: "auto",
+          px: 4,
+          py: 5,
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}
+      >
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 700, color: "text.primary", mb: 0.5 }}>
               ETF 趋势策略回测
@@ -895,7 +892,6 @@ export default function BacktestPage() {
             </>
           )}
         </Box>
-      </Box>
-    </Box>
+    </>
   );
 }

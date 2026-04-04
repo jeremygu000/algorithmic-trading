@@ -120,7 +120,7 @@ def find_similar_patterns(
 
     direction = "看涨" if avg_return > 0.02 else ("看跌" if avg_return < -0.02 else "震荡")
     projection = (
-        f"DTW匹配{top_k}次: {win_rate*100:.0f}%概率{direction} (期望 {avg_return*100:.1f}%)"
+        f"DTW匹配{top_k}次: {win_rate * 100:.0f}%概率{direction} (期望 {avg_return * 100:.1f}%)"
     )
 
     return {

@@ -282,7 +282,7 @@ class TradeExecutor:
             # ---------------------------------------------------------------------
             if weight > 0.01:
                 action = "BUY"
-                reason = f"目标持仓 {weight*100:.1f}%"
+                reason = f"目标持仓 {weight * 100:.1f}%"
             else:
                 action = "SELL"
                 reason = "目标权重为 0，建议清仓"
@@ -336,10 +336,10 @@ class TradeExecutor:
             if plan.action == "BUY":
                 lines.append(f"[{plan.symbol}] 买入计划")
                 lines.append(f"  📍 当前价格: ${plan.current_price:.2f}")
-                lines.append(f"  🎯 目标权重: {plan.target_weight*100:.1f}%")
+                lines.append(f"  🎯 目标权重: {plan.target_weight * 100:.1f}%")
                 lines.append(f"  📉 建议入场: ${plan.entry_price:.2f} (回调入场)")
                 lines.append(f"  🛑 止损价格: ${plan.stop_loss:.2f} (ATR × {self.atr_multiplier})")
-                lines.append(f"  📈 移动止损: {plan.trailing_stop_pct*100:.1f}% (跟踪最高价)")
+                lines.append(f"  📈 移动止损: {plan.trailing_stop_pct * 100:.1f}% (跟踪最高价)")
                 lines.append(f"  💡 {plan.reason}")
             else:
                 lines.append(f"[{plan.symbol}] 卖出信号")

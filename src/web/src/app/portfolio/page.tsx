@@ -8,7 +8,6 @@ import CardContent from "@mui/material/CardContent";
 import CircularProgress from "@mui/material/CircularProgress";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
-import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 import {
   PieChart,
@@ -723,41 +722,35 @@ export default function PortfolioPage() {
 
   if (loading) {
     return (
-      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-        <Sidebar />
-        <Box
-          component="main"
-          sx={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 2,
-          }}
-        >
-          <CircularProgress size={32} />
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            加载投资组合数据中...
-          </Typography>
-        </Box>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "60vh",
+          gap: 2,
+        }}
+      >
+        <CircularProgress size={32} />
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          加载投资组合数据中...
+        </Typography>
       </Box>
     );
   }
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar />
-      <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-        <HeroBanner
-          title="ETF Trend"
-          subtitle="投资组合分析"
-          description="账户总览 · 持仓分布 · 净值曲线 · 风险指标"
-        />
+    <>
+      <HeroBanner
+        title="ETF Trend"
+        subtitle="投资组合分析"
+        description="账户总览 · 持仓分布 · 净值曲线 · 风险指标"
+      />
 
-        <Box
-          sx={{
-            maxWidth: 1100,
+      <Box
+        sx={{
+          maxWidth: 1100,
             mx: "auto",
             px: 4,
             py: 5,
@@ -809,7 +802,6 @@ export default function PortfolioPage() {
             </>
           )}
         </Box>
-      </Box>
-    </Box>
+    </>
   );
 }

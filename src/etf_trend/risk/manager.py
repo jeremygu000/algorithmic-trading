@@ -133,20 +133,20 @@ class RiskManager:
             # 1. 安全模式：每日亏损超限
             if self.state.safe_mode:
                 violations.append(
-                    f"安全模式已启动（日亏损 {self.state.daily_pnl_pct:.2%}），" f"禁止新开仓"
+                    f"安全模式已启动（日亏损 {self.state.daily_pnl_pct:.2%}），禁止新开仓"
                 )
 
             # 2. 持仓数量限制
             if position_count >= self.max_positions:
                 violations.append(
-                    f"持仓数已达上限 {self.max_positions}，" f"当前 {position_count} 个持仓"
+                    f"持仓数已达上限 {self.max_positions}，当前 {position_count} 个持仓"
                 )
 
             # 3. 单笔订单金额
             order_value = qty * price
             if order_value > self.max_order_value:
                 violations.append(
-                    f"订单金额 ${order_value:,.0f} 超过单笔限额 " f"${self.max_order_value:,.0f}"
+                    f"订单金额 ${order_value:,.0f} 超过单笔限额 ${self.max_order_value:,.0f}"
                 )
 
             # 4. 买入力缓冲

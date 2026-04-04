@@ -19,7 +19,6 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 import {
   AreaChart,
@@ -828,21 +827,19 @@ export default function ComparePage() {
   const hasResults = results.some((r) => r.data != null);
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar />
-      <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-        <HeroBanner
-          title="策略对比"
-          subtitle="Multi-Strategy Compare"
-          description="ETF 趋势策略参数对比 · 净值叠加 · 回撤分析 · 指标横评"
-        />
+    <>
+      <HeroBanner
+        title="策略对比"
+        subtitle="Multi-Strategy Compare"
+        description="ETF 趋势策略参数对比 · 净值叠加 · 回撤分析 · 指标横评"
+      />
 
-        <Box
-          sx={{
-            maxWidth: 1100,
-            mx: "auto",
-            px: 4,
-            py: 5,
+      <Box
+        sx={{
+          maxWidth: 1100,
+          mx: "auto",
+          px: 4,
+          py: 5,
             display: "flex",
             flexDirection: "column",
             gap: 4,
@@ -1126,7 +1123,6 @@ export default function ComparePage() {
             </Box>
           )}
         </Box>
-      </Box>
-    </Box>
+    </>
   );
 }

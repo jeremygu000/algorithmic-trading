@@ -80,13 +80,13 @@ def format_backtest_data(
 - 基准标的: {benchmark_symbol}
 
 ## 策略绩效指标
-- 年化收益率: {stats['Ann Return']:.2%}
-- 年化波动率: {stats['Ann Vol']:.2%}
-- 夏普比率: {stats['Sharpe']:.2f}
-- 最大回撤: {stats['Max Drawdown']:.2%}
-- 卡玛比率: {stats['Calmar']:.2f}
-- 平均日换手率: {stats['Avg Daily Turnover']:.2%}
-- 平均日交易成本: {stats['Avg Cost (bps/day)']:.2f} bps
+- 年化收益率: {stats["Ann Return"]:.2%}
+- 年化波动率: {stats["Ann Vol"]:.2%}
+- 夏普比率: {stats["Sharpe"]:.2f}
+- 最大回撤: {stats["Max Drawdown"]:.2%}
+- 卡玛比率: {stats["Calmar"]:.2f}
+- 平均日换手率: {stats["Avg Daily Turnover"]:.2%}
+- 平均日交易成本: {stats["Avg Cost (bps/day)"]:.2f} bps
 
 ## 策略 vs 基准
 - 策略累计收益: {strategy_return:.2%}
@@ -94,8 +94,8 @@ def format_backtest_data(
 - 超额收益: {strategy_return - bench_return:.2%}
 
 ## 回撤统计
-- 最大回撤: {bt['drawdown'].min():.2%}
-- 当前回撤: {bt['drawdown'].iloc[-1]:.2%}
+- 最大回撤: {bt["drawdown"].min():.2%}
+- 当前回撤: {bt["drawdown"].iloc[-1]:.2%}
 """
     return data
 

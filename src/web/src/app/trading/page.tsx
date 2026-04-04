@@ -19,7 +19,6 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogActions from "@mui/material/DialogActions";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
-import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 
 const API_BASE = "http://localhost:8300";
@@ -1466,51 +1465,38 @@ export default function TradingPage() {
   if (initialLoading) {
     return (
       <Box
-        sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "60vh",
+          gap: 2,
+        }}
       >
-        <Sidebar />
-        <Box
-          component="main"
-          sx={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 2,
-          }}
-        >
-          <CircularProgress size={32} />
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            加载交易数据中...
-          </Typography>
-        </Box>
+        <CircularProgress size={32} />
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          加载交易数据中...
+        </Typography>
       </Box>
     );
   }
 
   return (
-    <Box
-      sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}
-    >
-      <Sidebar />
-      <Box
-        component="main"
-        sx={{ flex: 1, overflowY: "auto", height: "100vh" }}
-      >
-        <HeroBanner
-          title="ETF Trend"
-          subtitle="交易中心"
-          description="Alpaca Paper Trading · 账户管理 · 一键下单"
-        />
+    <>
+      <HeroBanner
+        title="ETF Trend"
+        subtitle="交易中心"
+        description="Alpaca Paper Trading · 账户管理 · 一键下单"
+      />
 
-        <Box
-          sx={{
-            maxWidth: 1100,
-            mx: "auto",
-            px: 4,
-            pt: 1,
-            display: "flex",
+      <Box
+        sx={{
+          maxWidth: 1100,
+          mx: "auto",
+          px: 4,
+          pt: 1,
+          display: "flex",
             justifyContent: "flex-end",
           }}
         >
@@ -1585,7 +1571,6 @@ export default function TradingPage() {
             onCancelOrder={handleCancelOrder}
           />
         </Box>
-      </Box>
 
       <Dialog
         open={confirmDialog.open}
@@ -1653,6 +1638,6 @@ export default function TradingPage() {
           {tradeToast}
         </Alert>
       </Snackbar>
-    </Box>
+    </>
   );
 }

@@ -14,7 +14,6 @@ import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
-import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 import TradePlanModal from "@/components/TradePlanModal";
 import BatchExecuteModal from "@/components/BatchExecuteModal";
@@ -121,15 +120,13 @@ export default function TrendScanPage() {
   );
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar />
-      <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-        <HeroBanner
-          title="ETF Trend"
-          subtitle="趋势扫描"
-          description="按最近 K 日连续上涨/下跌形态筛选股票池，点击股票名称可进入深度分析页面"
-        />
-        <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5, display: "flex", flexDirection: "column", gap: 4 }}>
+    <>
+      <HeroBanner
+        title="ETF Trend"
+        subtitle="趋势扫描"
+        description="按最近 K 日连续上涨/下跌形态筛选股票池，点击股票名称可进入深度分析页面"
+      />
+      <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5, display: "flex", flexDirection: "column", gap: 4 }}>
 
           <Card variant="outlined" sx={{ borderRadius: 2 }}>
             <CardContent sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, alignItems: { md: "center" }, gap: 4 }}>
@@ -489,7 +486,6 @@ export default function TrendScanPage() {
             </>
           )}
         </Box>
-      </Box>
       <TradePlanModal
         open={planSymbol !== null}
         onClose={() => setPlanSymbol(null)}
@@ -505,6 +501,6 @@ export default function TrendScanPage() {
         }}
         symbols={[...selected]}
       />
-    </Box>
+    </>
   );
 }

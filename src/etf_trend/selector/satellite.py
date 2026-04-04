@@ -563,10 +563,10 @@ class StockSelector:
             # --- 5.5 避免追高 (5日涨幅过大) ---
             if short_ret > 0.10:
                 addon_score -= 0.1
-                reasons.append(f"短期涨幅过大({short_ret*100:.1f}%)")
+                reasons.append(f"短期涨幅过大({short_ret * 100:.1f}%)")
             elif short_ret < -0.10:
                 addon_score += 0.05  # 短期回调可能是买点
-                reasons.append(f"短期回调({short_ret*100:.1f}%)")
+                reasons.append(f"短期回调({short_ret * 100:.1f}%)")
 
             # --- 5.6 Sector Bonus ---
             if stock_sector:

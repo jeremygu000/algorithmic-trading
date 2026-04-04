@@ -13,7 +13,6 @@ import CircularProgress from "@mui/material/CircularProgress";
 import LinearProgress from "@mui/material/LinearProgress";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 
 const API_BASE = "http://localhost:8300";
@@ -86,7 +85,6 @@ export default function PicksPage() {
   const [symbolOptions, setSymbolOptions] = useState<string[]>([]);
   const [watchLoading, setWatchLoading] = useState(false);
   const [watchError, setWatchError] = useState<string | null>(null);
-  const [reloadTick, setReloadTick] = useState(0);
 
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -147,7 +145,6 @@ export default function PicksPage() {
       })
       .then((res) => {
         setWatchlist(res.symbols || []);
-        setReloadTick((n) => n + 1);
       })
       .catch((e: unknown) => {
         setWatchError(e instanceof Error ? e.message : "更新 watch list 失败");
@@ -230,7 +227,7 @@ export default function PicksPage() {
       es.close();
       eventSourceRef.current = null;
     };
-  }, [sizeFilter, reloadTick]);
+  }, [sizeFilter]);
 
   useEffect(() => {
     loadWatchlist();
@@ -241,23 +238,17 @@ export default function PicksPage() {
 
   if (streaming && !metadata && picks.length === 0) {
     return (
-      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-        <Sidebar />
-        <Box
-          component="main"
-          sx={{ flex: 1, overflowY: "auto", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}
-        >
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: 280 }}>
-            <CircularProgress size={32} />
-            <Typography sx={{ color: "text.secondary", textAlign: "center" }}>
-              {progress?.message || "筛选优质标的中..."}
-            </Typography>
-            <LinearProgress
-              variant="determinate"
-              value={progressPercent}
-              sx={{ width: "100%", borderRadius: 1, height: 4 }}
-            />
-          </Box>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: 280 }}>
+          <CircularProgress size={32} />
+          <Typography sx={{ color: "text.secondary", textAlign: "center" }}>
+            {progress?.message || "筛选优质标的中..."}
+          </Typography>
+          <LinearProgress
+            variant="determinate"
+            value={progressPercent}
+            sx={{ width: "100%", borderRadius: 1, height: 4 }}
+          />
         </Box>
       </Box>
     );
@@ -267,22 +258,17 @@ export default function PicksPage() {
 
   if (error && !metadata && picks.length === 0) {
     return (
-      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-        <Sidebar />
-        <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-          <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 12 }}>
-            <Box
-              sx={{
-                bgcolor: "rgba(244,63,94,0.08)",
-                border: "1px solid rgba(244,63,94,0.25)",
-                borderRadius: 3,
-                p: 6,
-                textAlign: "center",
-              }}
-            >
-              <Typography sx={{ color: "error.main" }}>{error}</Typography>
-            </Box>
-          </Box>
+      <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 12 }}>
+        <Box
+          sx={{
+            bgcolor: "rgba(244,63,94,0.08)",
+            border: "1px solid rgba(244,63,94,0.25)",
+            borderRadius: 3,
+            p: 6,
+            textAlign: "center",
+          }}
+        >
+          <Typography sx={{ color: "error.main" }}>{error}</Typography>
         </Box>
       </Box>
     );
@@ -291,15 +277,13 @@ export default function PicksPage() {
   /* ── main UI (progressive) ──────────────────────────────── */
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar />
-      <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-        <HeroBanner
-          title="ETF Trend"
-          subtitle="智能选股推荐"
-          description="基于多因子模型的每日精选 (动量 + 波动率 + 趋势)"
-        />
-        <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5, display: "flex", flexDirection: "column", gap: 4 }}>
+    <>
+      <HeroBanner
+        title="ETF Trend"
+        subtitle="智能选股推荐"
+        description="基于多因子模型的每日精选 (动量 + 波动率 + 趋势)"
+      />
+      <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5, display: "flex", flexDirection: "column", gap: 4 }}>
 
           {/* streaming progress bar */}
           {streaming && (
@@ -436,7 +420,7 @@ export default function PicksPage() {
                     系统状态: {metadata.regime}
                   </Typography>
                   <Typography variant="caption" sx={{ display: "block", mb: 0.5, color: metadata.is_active ? "success.main" : "warning.main", opacity: 0.8 }}>
-                    当前范围: {metadata.size_label || "全部"} | 可参与筛选: {metadata.eligible_stock_count ?? 0} 只
+                    当前范围: {metadata.size_label || "全部"} | Russell 3000 经多因子筛选后 {metadata.eligible_stock_count ?? 0} 只入围
                   </Typography>
                   {doneMessage && (
                     <Typography variant="body2" sx={{ color: metadata.is_active ? "success.main" : "warning.main", opacity: 0.9 }}>
@@ -638,7 +622,6 @@ export default function PicksPage() {
           </Card>
 
         </Box>
-      </Box>
-    </Box>
+    </>
   );
 }

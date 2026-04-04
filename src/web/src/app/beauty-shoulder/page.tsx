@@ -12,7 +12,6 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import Chip from "@mui/material/Chip";
-import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 import KlineModal from "@/components/KlineModal";
 import {
@@ -1641,33 +1640,23 @@ export default function BeautyShoulderPage() {
 
   if (initialLoading) {
     return (
-      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-        <Sidebar />
-        <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-            <CircularProgress size={32} />
-            <Typography sx={{ color: "text.secondary" }}>扫描美人肩形态中...</Typography>
-          </Box>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+          <CircularProgress size={32} />
+          <Typography sx={{ color: "text.secondary" }}>扫描美人肩形态中...</Typography>
         </Box>
       </Box>
     );
   }
 
   return (
-    <Box
-      sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}
-    >
-      <Sidebar />
+    <>
+      <HeroBanner
+        title="ETF Trend"
+        subtitle="美人肩扫描"
+        description="识别第一段上涨 + 正常回调后的二次启动形态，捕捉高确定性入场机会"
+      />
       <Box
-        component="main"
-        sx={{ flex: 1, overflowY: "auto", height: "100vh" }}
-      >
-        <HeroBanner
-          title="ETF Trend"
-          subtitle="美人肩扫描"
-          description="识别第一段上涨 + 正常回调后的二次启动形态，捕捉高确定性入场机会"
-        />
-        <Box
           sx={{
             maxWidth: 1100,
             mx: "auto",
@@ -1709,7 +1698,6 @@ export default function BeautyShoulderPage() {
           {tab === 1 && <EarlyMoversTab />}
           {tab === 2 && <BacktestTab />}
         </Box>
-      </Box>
-    </Box>
+    </>
   );
 }

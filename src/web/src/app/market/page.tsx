@@ -11,7 +11,6 @@ import LinearProgress from "@mui/material/LinearProgress";
 import CircularProgress from "@mui/material/CircularProgress";
 import Chip from "@mui/material/Chip";
 import Grid from "@mui/material/Grid";
-import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 
 const API_BASE = "http://localhost:8300";
@@ -83,22 +82,17 @@ export default function MarketPage() {
 
   if (loading) {
     return (
-      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-        <Sidebar />
-        <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minHeight: "60vh",
-            }}
-          >
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-              <CircularProgress size={40} />
-              <Typography color="text.secondary">加载市场数据...</Typography>
-            </Box>
-          </Box>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "60vh",
+        }}
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+          <CircularProgress size={40} />
+          <Typography color="text.secondary">加载市场数据...</Typography>
         </Box>
       </Box>
     );
@@ -106,38 +100,33 @@ export default function MarketPage() {
 
   if (error) {
     return (
-      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-        <Sidebar />
-        <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-          <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5 }}>
-            <Card
-              sx={{
-                border: "1px solid",
-                borderColor: "error.dark",
-                bgcolor: "rgba(211, 47, 47, 0.08)",
-                borderRadius: 3,
-                textAlign: "center",
-              }}
+      <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5 }}>
+        <Card
+          sx={{
+            border: "1px solid",
+            borderColor: "error.dark",
+            bgcolor: "rgba(211, 47, 47, 0.08)",
+            borderRadius: 3,
+            textAlign: "center",
+          }}
+        >
+          <CardContent sx={{ py: 6 }}>
+            <Typography variant="h6" color="error.main" fontWeight={600} mb={1}>
+              连接失败
+            </Typography>
+            <Typography color="text.secondary" mb={3}>
+              {error}
+            </Typography>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={() => window.location.reload()}
+              sx={{ textTransform: "none" }}
             >
-              <CardContent sx={{ py: 6 }}>
-                <Typography variant="h6" color="error.main" fontWeight={600} mb={1}>
-                  连接失败
-                </Typography>
-                <Typography color="text.secondary" mb={3}>
-                  {error}
-                </Typography>
-                <Button
-                  variant="contained"
-                  color="error"
-                  onClick={() => window.location.reload()}
-                  sx={{ textTransform: "none" }}
-                >
-                  重试
-                </Button>
-              </CardContent>
-            </Card>
-          </Box>
-        </Box>
+              重试
+            </Button>
+          </CardContent>
+        </Card>
       </Box>
     );
   }
@@ -145,15 +134,13 @@ export default function MarketPage() {
   const regime = regimeConfig[data?.regime || "NEUTRAL"];
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar />
-      <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-        <HeroBanner
-          title="ETF Trend"
-          subtitle="市场状态"
-          description="实时监控市场情绪 (Risk On/Off)，查看风险预算分配与关键市场信号"
-        />
-        <Box
+    <>
+      <HeroBanner
+        title="ETF Trend"
+        subtitle="市场状态"
+        description="实时监控市场情绪 (Risk On/Off)，查看风险预算分配与关键市场信号"
+      />
+      <Box
           sx={{
             maxWidth: 1100,
             mx: "auto",
@@ -441,7 +428,6 @@ export default function MarketPage() {
             </Box>
           )}
         </Box>
-      </Box>
-    </Box>
+    </>
   );
 }

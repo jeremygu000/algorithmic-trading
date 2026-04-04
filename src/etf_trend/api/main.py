@@ -647,7 +647,7 @@ async def get_stock_picks(
     size: str = Query(
         default="all",
         description="规模筛选: all/large/small 或 全部/大盘股/小盘股（基于 Russell 2000/3000）",
-    )
+    ),
 ):
     """
     获取今日推荐个股列表
@@ -828,7 +828,7 @@ async def stream_stock_picks(
     size: str = Query(
         default="all",
         description="规模筛选: all/large/small 或 全部/大盘股/小盘股",
-    )
+    ),
 ):
     """SSE 流式返回推荐个股，前端逐步显示结果。"""
 

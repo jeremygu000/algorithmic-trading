@@ -13,7 +13,6 @@ import InputAdornment from "@mui/material/InputAdornment";
 import Chip from "@mui/material/Chip";
 import Grid from "@mui/material/Grid";
 import SearchIcon from "@mui/icons-material/Search";
-import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 
 const quickLinks = [
@@ -76,11 +75,9 @@ export default function Home() {
   };
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar />
-      <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-        <HeroBanner />
-        <Box
+    <>
+      <HeroBanner />
+      <Box
           sx={{
             maxWidth: 1100,
             mx: "auto",
@@ -344,10 +341,9 @@ export default function Home() {
                   }}
                 />
               ))}
-            </Box>
-          </Box>
         </Box>
       </Box>
-    </Box>
+      </Box>
+    </>
   );
 }
