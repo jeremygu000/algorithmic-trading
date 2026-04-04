@@ -96,7 +96,6 @@ reports/
 logs/
 
 # uv
-uv.lock
 
 # mypy
 .mypy_cache/
