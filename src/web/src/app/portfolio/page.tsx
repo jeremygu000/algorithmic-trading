@@ -68,6 +68,19 @@ interface RiskMetrics {
 interface EquityCurvePoint {
   date: string;
   nav: number;
+  benchmark_nav: number | null;
+}
+
+interface BenchmarkMetrics {
+  symbol: string;
+  alpha: number | null;
+  beta: number | null;
+  r_squared: number | null;
+  tracking_error: number | null;
+  information_ratio: number | null;
+  portfolio_return: number | null;
+  benchmark_return: number | null;
+  excess_return: number | null;
 }
 
 interface PortfolioAnalytics {
@@ -75,6 +88,7 @@ interface PortfolioAnalytics {
   allocation: AllocationItem[];
   risk_metrics: RiskMetrics;
   equity_curve: EquityCurvePoint[];
+  benchmark_metrics: BenchmarkMetrics | null;
 }
 
 function fmtMoney(value: number | null | undefined): string {
@@ -252,6 +266,8 @@ interface AreaTooltipProps {
 
 function AreaTooltipContent({ active, payload, label }: AreaTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
+  const navEntry = payload.find((p) => p.dataKey === "nav");
+  const benchEntry = payload.find((p) => p.dataKey === "benchmark_nav");
   return (
     <Box
       sx={{
@@ -266,9 +282,16 @@ function AreaTooltipContent({ active, payload, label }: AreaTooltipProps) {
       <Typography sx={{ fontSize: "0.75rem", color: "text.disabled", mb: 0.5 }}>
         {label}
       </Typography>
-      <Typography sx={{ fontFamily: "monospace", fontWeight: 600, fontSize: "0.9rem", color: "#3b89ff" }}>
-        NAV: {fmtMoney(payload[0].value)}
-      </Typography>
+      {navEntry != null && (
+        <Typography sx={{ fontFamily: "monospace", fontWeight: 600, fontSize: "0.9rem", color: "#3b89ff" }}>
+          组合: {fmtMoney(navEntry.value)}
+        </Typography>
+      )}
+      {benchEntry != null && benchEntry.value != null && (
+        <Typography sx={{ fontFamily: "monospace", fontWeight: 600, fontSize: "0.9rem", color: "#fdbc2a" }}>
+          SPY: {fmtMoney(benchEntry.value)}
+        </Typography>
+      )}
     </Box>
   );
 }
@@ -372,11 +395,17 @@ function AllocationChart({ allocation }: { allocation: AllocationItem[] }) {
 }
 
 function EquityCurve({ equityCurve }: { equityCurve: EquityCurvePoint[] }) {
-  const minNav = equityCurve.length > 0 ? Math.min(...equityCurve.map((d) => d.nav)) : 0;
-  const maxNav = equityCurve.length > 0 ? Math.max(...equityCurve.map((d) => d.nav)) : 0;
-  const padding = (maxNav - minNav) * 0.05;
-  const domainMin = Math.floor((minNav - padding) * 100) / 100;
-  const domainMax = Math.ceil((maxNav + padding) * 100) / 100;
+  const navValues = equityCurve.map((d) => d.nav);
+  const benchValues = equityCurve
+    .map((d) => d.benchmark_nav)
+    .filter((v): v is number => v != null);
+  const allValues = [...navValues, ...benchValues];
+  const minVal = allValues.length > 0 ? Math.min(...allValues) : 0;
+  const maxVal = allValues.length > 0 ? Math.max(...allValues) : 0;
+  const padding = (maxVal - minVal) * 0.05;
+  const domainMin = Math.floor((minVal - padding) * 100) / 100;
+  const domainMax = Math.ceil((maxVal + padding) * 100) / 100;
+  const hasBenchmark = benchValues.length > 0;
 
   return (
     <Card variant="outlined" sx={{ borderRadius: 2 }}>
@@ -409,6 +438,10 @@ function EquityCurve({ equityCurve }: { equityCurve: EquityCurvePoint[] }) {
                     <stop offset="5%" stopColor="#3b89ff" stopOpacity={0.25} />
                     <stop offset="95%" stopColor="#3b89ff" stopOpacity={0.02} />
                   </linearGradient>
+                  <linearGradient id="benchGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#fdbc2a" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#fdbc2a" stopOpacity={0.01} />
+                  </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.12)" />
                 <XAxis
@@ -427,15 +460,39 @@ function EquityCurve({ equityCurve }: { equityCurve: EquityCurvePoint[] }) {
                   width={72}
                 />
                 <Tooltip content={<AreaTooltipContent />} />
+                {hasBenchmark && (
+                  <Legend
+                    formatter={(value) => (
+                      <span style={{ fontSize: "0.75rem", color: "inherit" }}>
+                        {value === "nav" ? "组合净值" : "SPY"}
+                      </span>
+                    )}
+                  />
+                )}
                 <Area
                   type="monotone"
                   dataKey="nav"
+                  name="nav"
                   stroke="#3b89ff"
                   strokeWidth={2}
                   fill="url(#navGradient)"
                   dot={false}
                   activeDot={{ r: 4, fill: "#3b89ff", strokeWidth: 0 }}
                 />
+                {hasBenchmark && (
+                  <Area
+                    type="monotone"
+                    dataKey="benchmark_nav"
+                    name="benchmark_nav"
+                    stroke="#fdbc2a"
+                    strokeWidth={1.5}
+                    strokeDasharray="4 4"
+                    fill="url(#benchGradient)"
+                    dot={false}
+                    activeDot={{ r: 3, fill: "#fdbc2a", strokeWidth: 0 }}
+                    connectNulls
+                  />
+                )}
               </AreaChart>
             </ResponsiveContainer>
           </Box>
@@ -502,6 +559,124 @@ function RiskMetricsSection({ risk }: { risk: RiskMetrics }) {
               value={m.value}
               valueColor={m.valueColor}
             />
+          ))}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+function BenchmarkSection({ benchmark }: { benchmark: BenchmarkMetrics | null }) {
+  if (!benchmark) {
+    return (
+      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <CardContent sx={{ p: 3 }}>
+          <Box sx={{ mb: 2.5 }}>
+            <SectionHeader icon="📊" title="Benchmark 对比 (SPY)" />
+          </Box>
+          <Box
+            sx={{
+              bgcolor: "background.paper",
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              p: 5,
+              textAlign: "center",
+            }}
+          >
+            <Typography sx={{ fontSize: "2.5rem", opacity: 0.2, mb: 2 }}>📊</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              暂无 Benchmark 数据
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const returnCards = [
+    {
+      label: "组合收益",
+      value: benchmark.portfolio_return != null ? fmtPct(benchmark.portfolio_return) : "—",
+      valueColor: benchmark.portfolio_return != null ? plColor(benchmark.portfolio_return) : undefined,
+    },
+    {
+      label: `${benchmark.symbol} 收益`,
+      value: benchmark.benchmark_return != null ? fmtPct(benchmark.benchmark_return) : "—",
+      valueColor: benchmark.benchmark_return != null ? plColor(benchmark.benchmark_return) : undefined,
+    },
+    {
+      label: "超额收益",
+      value: benchmark.excess_return != null ? fmtPct(benchmark.excess_return) : "—",
+      valueColor: benchmark.excess_return != null ? plColor(benchmark.excess_return) : undefined,
+    },
+  ];
+
+  const metricCards = [
+    {
+      label: "Alpha",
+      value:
+        benchmark.alpha != null
+          ? `${benchmark.alpha >= 0 ? "+" : ""}${(benchmark.alpha * 100).toFixed(2)}%`
+          : "—",
+      valueColor: benchmark.alpha != null ? plColor(benchmark.alpha) : undefined,
+    },
+    {
+      label: "Beta",
+      value: benchmark.beta != null ? fmtNum(benchmark.beta, 2) : "—",
+      valueColor: undefined,
+    },
+    {
+      label: "R²",
+      value:
+        benchmark.r_squared != null
+          ? `${(benchmark.r_squared * 100).toFixed(1)}%`
+          : "—",
+      valueColor: undefined,
+    },
+    {
+      label: "Tracking Error",
+      value:
+        benchmark.tracking_error != null
+          ? `${(benchmark.tracking_error * 100).toFixed(2)}%`
+          : "—",
+      valueColor: undefined,
+    },
+    {
+      label: "Information Ratio",
+      value: benchmark.information_ratio != null ? fmtNum(benchmark.information_ratio, 2) : "—",
+      valueColor:
+        benchmark.information_ratio != null ? plColor(benchmark.information_ratio) : undefined,
+    },
+  ];
+
+  return (
+    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+      <CardContent sx={{ p: 3 }}>
+        <Box sx={{ mb: 2.5 }}>
+          <SectionHeader icon="📊" title={`Benchmark 对比 (${benchmark.symbol})`} />
+        </Box>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr 1fr", sm: "1fr 1fr 1fr" },
+            gap: 1.5,
+            mb: 1.5,
+          }}
+        >
+          {returnCards.map((m) => (
+            <StatCard key={m.label} label={m.label} value={m.value} valueColor={m.valueColor} large />
+          ))}
+        </Box>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr 1fr", sm: "1fr 1fr 1fr 1fr 1fr" },
+            gap: 1.5,
+          }}
+        >
+          {metricCards.map((m) => (
+            <StatCard key={m.label} label={m.label} value={m.value} valueColor={m.valueColor} />
           ))}
         </Box>
       </CardContent>
@@ -622,6 +797,8 @@ export default function PortfolioPage() {
               </Box>
 
               <RiskMetricsSection risk={data.risk_metrics} />
+
+              <BenchmarkSection benchmark={data.benchmark_metrics} />
             </>
           )}
         </Box>

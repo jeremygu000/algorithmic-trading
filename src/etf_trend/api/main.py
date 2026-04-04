@@ -42,6 +42,7 @@ matplotlib.rcParams["font.sans-serif"] = ["PingFang SC", "Arial Unicode MS", "Si
 matplotlib.rcParams["axes.unicode_minus"] = False
 
 from etf_trend.config.settings import EnvSettings, load_config
+from etf_trend.analysis.attribution import calculate_alpha_beta
 from etf_trend.data.providers.unified import load_prices_with_fallback
 from etf_trend.data.providers.local_parquet import load_local_daily_ohlcv
 from etf_trend.brokers.alpaca_client import AlpacaBroker, OrderResult
@@ -1324,9 +1325,14 @@ async def portfolio_analytics(days: int = Query(default=90, ge=7, le=365)):
         {"name": "现金", "value": round(cash, 2), "weight": round(cash_weight * 100, 2)}
     )
 
-    # ── equity_curve: 加权组合净值曲线 ──
+    # ── equity_curve: 加权组合净值曲线 + benchmark ──
     equity_curve: list[dict] = []
     daily_returns: list[float] = []
+    benchmark_nav_series: pd.Series | None = None
+    benchmark_returns_series: pd.Series | None = None
+
+    cfg = load_config()
+    benchmark_symbol = cfg.universe.market_benchmark
 
     if positions:
         symbols = [p.symbol for p in positions]
@@ -1334,8 +1340,9 @@ async def portfolio_analytics(days: int = Query(default=90, ge=7, le=365)):
         start_date = end_date - timedelta(days=days)
 
         try:
+            all_symbols = list(set(symbols + [benchmark_symbol]))
             price_data = load_local_daily_ohlcv(
-                symbols=symbols,
+                symbols=all_symbols,
                 start=start_date.isoformat(),
                 end=end_date.isoformat(),
             )
@@ -1346,15 +1353,27 @@ async def portfolio_analytics(days: int = Query(default=90, ge=7, le=365)):
                     if df is not None and not df.empty and "Close" in df.columns:
                         close_frames[sym] = df["Close"]
 
-                if close_frames:
-                    close_df = pd.DataFrame(close_frames).dropna()
+                # ── benchmark NAV ──
+                if benchmark_symbol in close_frames:
+                    bench_close = close_frames[benchmark_symbol].dropna()
+                    if len(bench_close) > 1:
+                        benchmark_returns_series = bench_close.pct_change().dropna()
+                        benchmark_nav_series = (1 + benchmark_returns_series).cumprod()
+
+                # 从 close_frames 中移除 benchmark（不参与持仓权重计算）
+                position_close = {
+                    sym: s for sym, s in close_frames.items() if sym != benchmark_symbol
+                }
+
+                if position_close:
+                    close_df = pd.DataFrame(position_close).dropna()
 
                     if not close_df.empty:
                         returns_df = close_df.pct_change().dropna()
 
                         weights = {}
                         for p in positions:
-                            if p.symbol in close_frames:
+                            if p.symbol in position_close:
                                 w = (
                                     float(p.market_value) / portfolio_value
                                     if portfolio_value > 0
@@ -1373,8 +1392,18 @@ async def portfolio_analytics(days: int = Query(default=90, ge=7, le=365)):
 
                                 nav = (1 + port_returns).cumprod()
                                 for idx, val in nav.items():
+                                    bench_val = None
+                                    if (
+                                        benchmark_nav_series is not None
+                                        and idx in benchmark_nav_series.index
+                                    ):
+                                        bench_val = round(float(benchmark_nav_series.loc[idx]), 4)
                                     equity_curve.append(
-                                        {"date": str(idx.date()), "nav": round(float(val), 4)}
+                                        {
+                                            "date": str(idx.date()),
+                                            "nav": round(float(val), 4),
+                                            "benchmark_nav": bench_val,
+                                        }
                                     )
         except Exception:
             logger.warning("Failed to compute equity curve", exc_info=True)
@@ -1438,6 +1467,47 @@ async def portfolio_analytics(days: int = Query(default=90, ge=7, le=365)):
             }
         )
 
+    # ── benchmark_metrics: Alpha / Beta / Tracking Error / Information Ratio ──
+    benchmark_metrics: dict | None = None
+
+    if daily_returns and benchmark_returns_series is not None and len(daily_returns) >= 30:
+        port_series = pd.Series(
+            daily_returns,
+            index=(
+                benchmark_returns_series.index[: len(daily_returns)]
+                if len(benchmark_returns_series) >= len(daily_returns)
+                else None
+            ),
+        )
+
+        aligned = pd.DataFrame({"port": port_series, "bench": benchmark_returns_series}).dropna()
+
+        if len(aligned) >= 30:
+            ab = calculate_alpha_beta(aligned["port"], aligned["bench"])
+
+            active_ret = aligned["port"] - aligned["bench"]
+            tracking_error = float(active_ret.std() * np.sqrt(252))
+            mean_active = float(active_ret.mean() * 252)
+            info_ratio = mean_active / tracking_error if tracking_error > 0 else None
+
+            total_port = float((1 + aligned["port"]).prod() - 1)
+            total_bench = float((1 + aligned["bench"]).prod() - 1)
+
+            def _safe(v: float) -> float | None:
+                return round(float(v), 4) if np.isfinite(v) else None
+
+            benchmark_metrics = {
+                "symbol": benchmark_symbol,
+                "alpha": _safe(ab["alpha"]),
+                "beta": _safe(ab["beta"]),
+                "r_squared": _safe(ab["r_squared"]),
+                "tracking_error": _safe(tracking_error),
+                "information_ratio": _safe(info_ratio) if info_ratio is not None else None,
+                "portfolio_return": _safe(total_port),
+                "benchmark_return": _safe(total_bench),
+                "excess_return": _safe(total_port - total_bench),
+            }
+
     return {
         "account": {
             "account_id": acct.account_id,
@@ -1454,6 +1524,7 @@ async def portfolio_analytics(days: int = Query(default=90, ge=7, le=365)):
         "allocation": allocation,
         "risk_metrics": risk_metrics,
         "equity_curve": equity_curve,
+        "benchmark_metrics": benchmark_metrics,
     }
 
 
