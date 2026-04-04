@@ -39,6 +39,7 @@ matplotlib.rcParams["axes.unicode_minus"] = False
 
 from etf_trend.config.settings import EnvSettings, load_config
 from etf_trend.data.providers.unified import load_prices_with_fallback
+from etf_trend.data.providers.local_parquet import load_local_daily_ohlcv
 from etf_trend.regime.engine import RegimeEngine
 from etf_trend.selector.satellite import StockSelector
 from etf_trend.execution.executor import TradeExecutor, calculate_atr
@@ -887,5 +888,105 @@ async def beauty_shoulder_backtest(
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# OHLCV K-Line Data Endpoint
+# =============================================================================
+
+
+@app.get("/api/stock/{symbol}/ohlcv")
+async def get_stock_ohlcv(
+    symbol: str,
+    interval: str = Query(
+        default="daily",
+        description="K-line interval: daily, weekly, monthly",
+    ),
+    days: int = Query(
+        default=365,
+        ge=30,
+        le=3650,
+        description="Lookback days for daily data",
+    ),
+):
+    """
+    返回股票 OHLCV K 线数据 (日K/周K/月K)
+
+    - **symbol**: 股票代码 (e.g. AAPL)
+    - **interval**: daily / weekly / monthly
+    - **days**: 回看天数 (仅对 daily 有效)
+    """
+    symbol = symbol.upper().strip()
+    if interval not in ("daily", "weekly", "monthly"):
+        raise HTTPException(
+            status_code=400, detail="interval must be daily, weekly, or monthly"
+        )
+
+    try:
+        end_date = date.today()
+        # For weekly/monthly, load more data so resampling has enough history
+        lookback_days = days if interval == "daily" else max(days, 365 * 3)
+        start_date = end_date - timedelta(days=lookback_days)
+
+        ohlcv = load_local_daily_ohlcv(
+            symbols=[symbol],
+            start=str(start_date),
+            end=str(end_date),
+        )
+
+        if symbol not in ohlcv or ohlcv[symbol].empty:
+            raise HTTPException(
+                status_code=404, detail=f"No OHLCV data for {symbol}"
+            )
+
+        df = ohlcv[symbol].copy()
+
+        if interval == "weekly":
+            df = df.resample("W-FRI").agg(
+                {
+                    "Open": "first",
+                    "High": "max",
+                    "Low": "min",
+                    "Close": "last",
+                    "Volume": "sum",
+                }
+            ).dropna(subset=["Open"])
+        elif interval == "monthly":
+            df = df.resample("ME").agg(
+                {
+                    "Open": "first",
+                    "High": "max",
+                    "Low": "min",
+                    "Close": "last",
+                    "Volume": "sum",
+                }
+            ).dropna(subset=["Open"])
+
+        # Lightweight-charts expects { time: "YYYY-MM-DD", open, high, low, close }
+        candles = []
+        for idx, row in df.iterrows():
+            candles.append(
+                {
+                    "time": str(idx.date()),
+                    "open": round(float(row["Open"]), 4),
+                    "high": round(float(row["High"]), 4),
+                    "low": round(float(row["Low"]), 4),
+                    "close": round(float(row["Close"]), 4),
+                    "volume": int(row["Volume"])
+                    if pd.notna(row["Volume"])
+                    else 0,
+                }
+            )
+
+        return {
+            "symbol": symbol,
+            "interval": interval,
+            "count": len(candles),
+            "candles": candles,
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -14,6 +14,7 @@ import TextField from "@mui/material/TextField";
 import Chip from "@mui/material/Chip";
 import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
+import KlineModal from "@/components/KlineModal";
 
 const API_BASE = "http://localhost:8300";
 
@@ -265,6 +266,7 @@ function BeautyShoulderTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [modalSymbol, setModalSymbol] = useState<{ symbol: string; name: string } | null>(null);
 
   const handleRetry = () => {
     setLoading(true);
@@ -326,12 +328,14 @@ function BeautyShoulderTab() {
             gap: 3,
           }}
         >
-          {sorted.map((p) => (
+          {sorted.map((p, idx) => (
             <Card
-              key={p.symbol}
+              key={`${p.symbol}-${p.signal_date}-${idx}`}
               variant="outlined"
+              onClick={() => setModalSymbol({ symbol: p.symbol, name: p.name })}
               sx={{
                 borderRadius: 3,
+                cursor: "pointer",
                 transition: "border-color 0.2s, box-shadow 0.2s",
                 "&:hover": {
                   borderColor: "#36bb80",
@@ -352,6 +356,7 @@ function BeautyShoulderTab() {
                     <Link
                       href={`/stock/${p.symbol}`}
                       style={{ textDecoration: "none" }}
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <Typography
                         variant="h6"
@@ -499,6 +504,12 @@ function BeautyShoulderTab() {
           subtitle="过去 90 日内未检测到有效形态，可稍后再试。"
         />
       )}
+      <KlineModal
+        open={modalSymbol !== null}
+        onClose={() => setModalSymbol(null)}
+        symbol={modalSymbol?.symbol ?? ""}
+        symbolName={modalSymbol?.name}
+      />
     </Box>
   );
 }
@@ -508,6 +519,7 @@ function EarlyMoversTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [modalSymbol, setModalSymbol] = useState<{ symbol: string; name: string } | null>(null);
 
   const handleRetry = () => {
     setLoading(true);
@@ -566,12 +578,14 @@ function EarlyMoversTab() {
             gap: 3,
           }}
         >
-          {data.signals.map((s) => (
+          {data.signals.map((s, idx) => (
             <Card
-              key={s.symbol}
+              key={`${s.symbol}-${s.window_end}-${idx}`}
               variant="outlined"
+              onClick={() => setModalSymbol({ symbol: s.symbol, name: s.name })}
               sx={{
                 borderRadius: 3,
+                cursor: "pointer",
                 transition: "border-color 0.2s, box-shadow 0.2s",
                 "&:hover": {
                   borderColor: "#36bb80",
@@ -592,6 +606,7 @@ function EarlyMoversTab() {
                     <Link
                       href={`/stock/${s.symbol}`}
                       style={{ textDecoration: "none" }}
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <Typography
                         variant="h6"
@@ -700,6 +715,12 @@ function EarlyMoversTab() {
           subtitle="当前窗口内未检测到满足条件的早期启动信号。"
         />
       )}
+      <KlineModal
+        open={modalSymbol !== null}
+        onClose={() => setModalSymbol(null)}
+        symbol={modalSymbol?.symbol ?? ""}
+        symbolName={modalSymbol?.name}
+      />
     </Box>
   );
 }
