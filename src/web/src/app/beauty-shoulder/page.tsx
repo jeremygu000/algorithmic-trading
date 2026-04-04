@@ -15,6 +15,18 @@ import Chip from "@mui/material/Chip";
 import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 import KlineModal from "@/components/KlineModal";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
+import type { ValueType, NameType } from "recharts/types/component/DefaultTooltipContent";
 
 const API_BASE = "http://localhost:8300";
 
@@ -57,13 +69,37 @@ interface EarlyMoverData {
   signals: EarlyMoverSignal[];
 }
 
+interface ExtendedMetrics {
+  [key: string]: number | null;
+}
+
 interface MonthlyBacktestStat {
-  month: string;
-  signal_count: number;
+  period: string;
+  total_signals: number;
   win_rate_2d: number;
   avg_return_2d: number;
   win_rate_3d: number;
   avg_return_3d: number;
+  median_return_2d: number;
+  median_return_3d: number;
+  max_gain_2d: number;
+  max_loss_2d: number;
+  max_gain_3d: number;
+  max_loss_3d: number;
+}
+
+interface BacktestSummary {
+  total_signals: number;
+  win_rate_2d: number;
+  win_rate_3d: number;
+  avg_return_2d: number;
+  avg_return_3d: number;
+  median_return_2d: number;
+  median_return_3d: number;
+  max_gain_2d: number;
+  max_gain_3d: number;
+  max_loss_2d: number;
+  max_loss_3d: number;
 }
 
 interface BacktestTrade {
@@ -74,23 +110,18 @@ interface BacktestTrade {
   exit_price_3d: number;
   return_2d: number;
   return_3d: number;
+  phase1_gain: number;
+  pullback_depth: number;
+  confidence: number;
 }
 
 interface BacktestData {
-  overall: {
-    total_signals: number;
-    win_rate_2d: number;
-    win_rate_3d: number;
-    avg_return_2d: number;
-    avg_return_3d: number;
-    median_return_2d: number;
-    median_return_3d: number;
-    max_gain_2d: number;
-    max_gain_3d: number;
-    max_loss_2d: number;
-    max_loss_3d: number;
-  };
-  monthly_stats: MonthlyBacktestStat[];
+  start: string;
+  end: string;
+  total_trades: number;
+  overall: BacktestSummary | null;
+  monthly: MonthlyBacktestStat[];
+  extended_metrics: ExtendedMetrics | null;
   trades: BacktestTrade[];
 }
 
@@ -258,6 +289,281 @@ function SummaryBanner({
         ))}
       </Box>
     </Box>
+  );
+}
+
+const EXTENDED_METRICS_CONFIG: {
+  key: string;
+  label: string;
+  format: (v: number) => string;
+  color?: (v: number) => string;
+}[] = [
+  {
+    key: "Sharpe",
+    label: "夏普比率",
+    format: (v) => v.toFixed(2),
+    color: (v) => returnColor(v),
+  },
+  { key: "Sortino", label: "Sortino", format: (v) => v.toFixed(2), color: (v) => returnColor(v) },
+  {
+    key: "Max Drawdown",
+    label: "最大回撤",
+    format: (v) => `${(v * 100).toFixed(2)}%`,
+    color: () => "#ff7134",
+  },
+  { key: "Calmar", label: "Calmar", format: (v) => v.toFixed(2), color: (v) => returnColor(v) },
+  {
+    key: "Win Rate",
+    label: "胜率",
+    format: (v) => `${(v * 100).toFixed(1)}%`,
+    color: (v) => returnColor(v - 0.5),
+  },
+  {
+    key: "Profit Factor",
+    label: "盈亏比",
+    format: (v) => v.toFixed(2),
+    color: (v) => returnColor(v - 1),
+  },
+  {
+    key: "Max DD Duration (days)",
+    label: "最大回撤天数",
+    format: (v) => String(Math.round(v)),
+  },
+  {
+    key: "Ann Return",
+    label: "年化收益",
+    format: (v) => `${(v * 100).toFixed(2)}%`,
+    color: (v) => returnColor(v),
+  },
+  {
+    key: "Ann Vol",
+    label: "年化波动",
+    format: (v) => `${(v * 100).toFixed(2)}%`,
+  },
+  {
+    key: "Tail Ratio (95/5)",
+    label: "尾部比率",
+    format: (v) => v.toFixed(2),
+    color: (v) => returnColor(v - 1),
+  },
+  {
+    key: "Common Sense Ratio",
+    label: "常识比率",
+    format: (v) => v.toFixed(2),
+    color: (v) => returnColor(v - 1),
+  },
+];
+
+function ExtendedMetricsSection({ metrics }: { metrics: ExtendedMetrics }) {
+  const entries = EXTENDED_METRICS_CONFIG.filter(
+    (cfg) => metrics[cfg.key] != null
+  );
+
+  if (entries.length === 0) return null;
+
+  return (
+    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+      <CardContent sx={{ p: 3 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 700,
+            mb: 2,
+            color: "text.primary",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            fontSize: "0.75rem",
+          }}
+        >
+          🔬 扩展绩效指标
+        </Typography>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr 1fr",
+              sm: "1fr 1fr 1fr",
+              md: "repeat(5, 1fr)",
+            },
+            gap: 1.5,
+          }}
+        >
+          {entries.map((cfg) => {
+            const raw = metrics[cfg.key] as number;
+            const formatted = cfg.format(raw);
+            const color = cfg.color ? cfg.color(raw) : undefined;
+            return (
+              <StatBox
+                key={cfg.key}
+                label={cfg.label}
+                value={formatted}
+                valueColor={color}
+              />
+            );
+          })}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MonthlyChart({ monthly }: { monthly: MonthlyBacktestStat[] }) {
+  if (monthly.length === 0) return null;
+
+  const chartData = monthly.map((m) => ({
+    name: m.period,
+    winRate: parseFloat((m.win_rate_2d * 100).toFixed(1)),
+    avgReturn: parseFloat((m.avg_return_2d * 100).toFixed(2)),
+  }));
+
+  return (
+    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+      <CardContent sx={{ p: 3 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 700,
+            mb: 2,
+            color: "text.primary",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            fontSize: "0.75rem",
+          }}
+        >
+          📊 月度表现图表
+        </Typography>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart
+            data={chartData}
+            margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 11, fill: "rgba(255,255,255,0.45)" }}
+              axisLine={{ stroke: "rgba(255,255,255,0.15)" }}
+              tickLine={false}
+            />
+            <YAxis
+              yAxisId="left"
+              tickFormatter={(v: number) => `${v}%`}
+              tick={{ fontSize: 11, fill: "rgba(255,255,255,0.45)" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tickFormatter={(v: number) => `${v}%`}
+              tick={{ fontSize: 11, fill: "rgba(255,255,255,0.45)" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "#1a1a2e",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 8,
+                fontSize: "0.8rem",
+              }}
+              formatter={(value: ValueType | undefined, name: NameType | undefined) => [
+                value != null ? `${value}%` : "—",
+                name === "winRate" ? "2日胜率" : "2日均收益",
+              ]}
+            />
+            <Legend
+              formatter={(value: string) =>
+                value === "winRate" ? "2日胜率" : "2日均收益"
+              }
+              wrapperStyle={{ fontSize: "0.8rem" }}
+            />
+            <Bar yAxisId="left" dataKey="winRate" fill="#3b89ff" radius={[3, 3, 0, 0]} />
+            <Bar yAxisId="right" dataKey="avgReturn" radius={[3, 3, 0, 0]}>
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={entry.avgReturn >= 0 ? "#36bb80" : "#ff7134"}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReturnDistributionChart({ trades }: { trades: BacktestTrade[] }) {
+  if (trades.length === 0) return null;
+
+  const buckets = [
+    { label: "<-3%", min: -Infinity, max: -0.03, color: "#ff7134" },
+    { label: "-3~-1%", min: -0.03, max: -0.01, color: "#ff9966" },
+    { label: "-1~0%", min: -0.01, max: 0, color: "#ffbb99" },
+    { label: "0~1%", min: 0, max: 0.01, color: "#99ddbb" },
+    { label: "1~3%", min: 0.01, max: 0.03, color: "#55cc99" },
+    { label: ">3%", min: 0.03, max: Infinity, color: "#36bb80" },
+  ];
+
+  const chartData = buckets.map((b) => ({
+    label: b.label,
+    count: trades.filter((t) => t.return_2d >= b.min && t.return_2d < b.max)
+      .length,
+    color: b.color,
+  }));
+
+  return (
+    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+      <CardContent sx={{ p: 3 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 700,
+            mb: 2,
+            color: "text.primary",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            fontSize: "0.75rem",
+          }}
+        >
+          📉 收益分布
+        </Typography>
+        <ResponsiveContainer width="100%" height={250}>
+          <BarChart
+            data={chartData}
+            margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 11, fill: "rgba(255,255,255,0.45)" }}
+              axisLine={{ stroke: "rgba(255,255,255,0.15)" }}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "rgba(255,255,255,0.45)" }}
+              axisLine={false}
+              tickLine={false}
+              allowDecimals={false}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "#1a1a2e",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 8,
+                fontSize: "0.8rem",
+              }}
+              formatter={(value: ValueType | undefined) => [value != null ? `${value} 笔` : "—", "交易数"]}
+            />
+            <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-dist-${index}`} fill={entry.color} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -891,104 +1197,114 @@ function BacktestTab() {
 
       {!loading && !error && data && (
         <>
-          <Card variant="outlined" sx={{ borderRadius: 2 }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 700,
-                  mb: 2,
-                  color: "text.primary",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  fontSize: "0.75rem",
-                }}
-              >
-                📈 综合统计
-              </Typography>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: {
-                    xs: "1fr 1fr",
-                    sm: "1fr 1fr 1fr",
-                    md: "repeat(5, 1fr)",
-                  },
-                  gap: 1.5,
-                }}
-              >
-                <StatBox
-                  label="信号总数"
-                  value={String(data.overall.total_signals)}
-                />
-                <StatBox
-                  label="2日胜率"
-                  value={`${(data.overall.win_rate_2d * 100).toFixed(1)}%`}
-                  valueColor={returnColor(data.overall.win_rate_2d - 0.5)}
-                />
-                <StatBox
-                  label="3日胜率"
-                  value={`${(data.overall.win_rate_3d * 100).toFixed(1)}%`}
-                  valueColor={returnColor(data.overall.win_rate_3d - 0.5)}
-                />
-                <StatBox
-                  label="2日均收益"
-                  value={`${data.overall.avg_return_2d >= 0 ? "+" : ""}${(data.overall.avg_return_2d * 100).toFixed(2)}%`}
-                  valueColor={returnColor(data.overall.avg_return_2d)}
-                />
-                <StatBox
-                  label="3日均收益"
-                  value={`${data.overall.avg_return_3d >= 0 ? "+" : ""}${(data.overall.avg_return_3d * 100).toFixed(2)}%`}
-                  valueColor={returnColor(data.overall.avg_return_3d)}
-                />
-              </Box>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: {
-                    xs: "1fr 1fr",
-                    sm: "1fr 1fr 1fr",
-                    md: "repeat(6, 1fr)",
-                  },
-                  gap: 1.5,
-                  mt: 1.5,
-                }}
-              >
-                <StatBox
-                  label="2日中位收益"
-                  value={`${data.overall.median_return_2d >= 0 ? "+" : ""}${(data.overall.median_return_2d * 100).toFixed(2)}%`}
-                  valueColor={returnColor(data.overall.median_return_2d)}
-                />
-                <StatBox
-                  label="3日中位收益"
-                  value={`${data.overall.median_return_3d >= 0 ? "+" : ""}${(data.overall.median_return_3d * 100).toFixed(2)}%`}
-                  valueColor={returnColor(data.overall.median_return_3d)}
-                />
-                <StatBox
-                  label="最大2日涨幅"
-                  value={`+${(data.overall.max_gain_2d * 100).toFixed(2)}%`}
-                  valueColor="#36bb80"
-                />
-                <StatBox
-                  label="最大3日涨幅"
-                  value={`+${(data.overall.max_gain_3d * 100).toFixed(2)}%`}
-                  valueColor="#36bb80"
-                />
-                <StatBox
-                  label="最大2日亏损"
-                  value={`${(data.overall.max_loss_2d * 100).toFixed(2)}%`}
-                  valueColor="#ff7134"
-                />
-                <StatBox
-                  label="最大3日亏损"
-                  value={`${(data.overall.max_loss_3d * 100).toFixed(2)}%`}
-                  valueColor="#ff7134"
-                />
-              </Box>
-            </CardContent>
-          </Card>
+          {data.overall && (
+            <Card variant="outlined" sx={{ borderRadius: 2 }}>
+              <CardContent sx={{ p: 3 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: 700,
+                    mb: 2,
+                    color: "text.primary",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  📈 综合统计
+                </Typography>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr 1fr",
+                      sm: "1fr 1fr 1fr",
+                      md: "repeat(5, 1fr)",
+                    },
+                    gap: 1.5,
+                  }}
+                >
+                  <StatBox
+                    label="信号总数"
+                    value={String(data.overall.total_signals)}
+                  />
+                  <StatBox
+                    label="2日胜率"
+                    value={`${(data.overall.win_rate_2d * 100).toFixed(1)}%`}
+                    valueColor={returnColor(data.overall.win_rate_2d - 0.5)}
+                  />
+                  <StatBox
+                    label="3日胜率"
+                    value={`${(data.overall.win_rate_3d * 100).toFixed(1)}%`}
+                    valueColor={returnColor(data.overall.win_rate_3d - 0.5)}
+                  />
+                  <StatBox
+                    label="2日均收益"
+                    value={`${data.overall.avg_return_2d >= 0 ? "+" : ""}${(data.overall.avg_return_2d * 100).toFixed(2)}%`}
+                    valueColor={returnColor(data.overall.avg_return_2d)}
+                  />
+                  <StatBox
+                    label="3日均收益"
+                    value={`${data.overall.avg_return_3d >= 0 ? "+" : ""}${(data.overall.avg_return_3d * 100).toFixed(2)}%`}
+                    valueColor={returnColor(data.overall.avg_return_3d)}
+                  />
+                </Box>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr 1fr",
+                      sm: "1fr 1fr 1fr",
+                      md: "repeat(6, 1fr)",
+                    },
+                    gap: 1.5,
+                    mt: 1.5,
+                  }}
+                >
+                  <StatBox
+                    label="2日中位收益"
+                    value={`${data.overall.median_return_2d >= 0 ? "+" : ""}${(data.overall.median_return_2d * 100).toFixed(2)}%`}
+                    valueColor={returnColor(data.overall.median_return_2d)}
+                  />
+                  <StatBox
+                    label="3日中位收益"
+                    value={`${data.overall.median_return_3d >= 0 ? "+" : ""}${(data.overall.median_return_3d * 100).toFixed(2)}%`}
+                    valueColor={returnColor(data.overall.median_return_3d)}
+                  />
+                  <StatBox
+                    label="最大2日涨幅"
+                    value={`+${(data.overall.max_gain_2d * 100).toFixed(2)}%`}
+                    valueColor="#36bb80"
+                  />
+                  <StatBox
+                    label="最大3日涨幅"
+                    value={`+${(data.overall.max_gain_3d * 100).toFixed(2)}%`}
+                    valueColor="#36bb80"
+                  />
+                  <StatBox
+                    label="最大2日亏损"
+                    value={`${(data.overall.max_loss_2d * 100).toFixed(2)}%`}
+                    valueColor="#ff7134"
+                  />
+                  <StatBox
+                    label="最大3日亏损"
+                    value={`${(data.overall.max_loss_3d * 100).toFixed(2)}%`}
+                    valueColor="#ff7134"
+                  />
+                </Box>
+              </CardContent>
+            </Card>
+          )}
 
-          {(data.monthly_stats ?? []).length > 0 && (
+          {data.extended_metrics && (
+            <ExtendedMetricsSection metrics={data.extended_metrics} />
+          )}
+
+          {(data.monthly ?? []).length > 0 && (
+            <MonthlyChart monthly={data.monthly} />
+          )}
+
+          {(data.monthly ?? []).length > 0 && (
             <Card variant="outlined" sx={{ borderRadius: 2 }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography
@@ -1015,9 +1331,9 @@ function BacktestTab() {
                     gap: 2,
                   }}
                 >
-                  {data.monthly_stats.map((m) => (
+                  {data.monthly.map((m) => (
                     <Box
-                      key={m.month}
+                      key={m.period}
                       sx={{
                         bgcolor: "action.hover",
                         borderRadius: 2,
@@ -1035,7 +1351,7 @@ function BacktestTab() {
                           color: "text.primary",
                         }}
                       >
-                        {m.month}
+                        {m.period}
                         <Box
                           component="span"
                           sx={{
@@ -1045,7 +1361,7 @@ function BacktestTab() {
                             fontWeight: 400,
                           }}
                         >
-                          ({m.signal_count} 信号)
+                          ({m.total_signals} 信号)
                         </Box>
                       </Typography>
                       <Box
@@ -1084,6 +1400,10 @@ function BacktestTab() {
           )}
 
           {(data.trades ?? []).length > 0 && (
+            <ReturnDistributionChart trades={data.trades} />
+          )}
+
+          {(data.trades ?? []).length > 0 && (
             <Card variant="outlined" sx={{ borderRadius: 2 }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography
@@ -1118,6 +1438,9 @@ function BacktestTab() {
                           "3日退出价",
                           "2日收益",
                           "3日收益",
+                          "置信度",
+                          "第一段涨幅",
+                          "回调深度",
                         ].map((h) => (
                           <Box
                             key={h}
@@ -1242,6 +1565,42 @@ function BacktestTab() {
                           >
                             {t.return_3d >= 0 ? "+" : ""}
                             {(t.return_3d * 100).toFixed(2)}%
+                          </Box>
+                          <Box
+                            component="td"
+                            sx={{
+                              px: 1.5,
+                              py: 1,
+                              fontFamily: "monospace",
+                              fontWeight: 600,
+                              color: confidenceColor(t.confidence),
+                            }}
+                          >
+                            {(t.confidence * 100).toFixed(0)}%
+                          </Box>
+                          <Box
+                            component="td"
+                            sx={{
+                              px: 1.5,
+                              py: 1,
+                              fontFamily: "monospace",
+                              fontWeight: 600,
+                              color: "#36bb80",
+                            }}
+                          >
+                            +{t.phase1_gain.toFixed(1)}%
+                          </Box>
+                          <Box
+                            component="td"
+                            sx={{
+                              px: 1.5,
+                              py: 1,
+                              fontFamily: "monospace",
+                              fontWeight: 600,
+                              color: "#ff7134",
+                            }}
+                          >
+                            -{Math.abs(t.pullback_depth).toFixed(1)}%
                           </Box>
                         </Box>
                       ))}
