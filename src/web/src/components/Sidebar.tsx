@@ -18,6 +18,7 @@ import PublicIcon from "@mui/icons-material/Public";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import StarIcon from "@mui/icons-material/Star";
 import CandlestickChartIcon from "@mui/icons-material/CandlestickChart";
+import AutoGraphIcon from "@mui/icons-material/AutoGraph";
 import SearchIcon from "@mui/icons-material/Search";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { id: "/market", label: "市场状态", Icon: PublicIcon },
   { id: "/trend-scan", label: "趋势扫描", Icon: TrendingUpIcon },
   { id: "/picks", label: "个股推荐", Icon: StarIcon },
+  { id: "/beauty-shoulder", label: "美人肩", Icon: AutoGraphIcon },
   { id: "/stock/AAPL", label: "股票分析", Icon: CandlestickChartIcon },
 ] as const;
 

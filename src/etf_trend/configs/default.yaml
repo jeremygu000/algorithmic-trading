@@ -104,7 +104,7 @@ universe:
   # averageVolume * latest_price 的最低成交额（美元）
   dynamic_min_avg_dollar_volume: 20000000.0
   # 过滤后最多保留多少只
-  dynamic_max_symbols: 300
+  dynamic_max_symbols: 2500
 
   # 规模分层指数成分文件
   russell_2000_symbols_file: cache/index/russell2000.txt

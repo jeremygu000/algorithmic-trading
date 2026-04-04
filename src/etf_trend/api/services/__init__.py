@@ -5,6 +5,11 @@ from etf_trend.api.services.trend_scanner import (
     TrendScanResult,
     TrendScannerService,
 )
+from etf_trend.api.services.beauty_shoulder_scanner import (
+    BeautyShoulderScannerService,
+    BeautyShoulderScanResult,
+    EarlyMoverScanResult,
+)
 from etf_trend.api.services.stock_universe import StockUniverseBuilder, StockUniverseBuildResult
 from etf_trend.api.services.symbol_store import (
     add_symbol_to_file,
@@ -18,6 +23,9 @@ __all__ = [
     "TrendScannerService",
     "TrendScanResult",
     "TrendScanMatch",
+    "BeautyShoulderScannerService",
+    "BeautyShoulderScanResult",
+    "EarlyMoverScanResult",
     "StockUniverseBuilder",
     "StockUniverseBuildResult",
     "read_symbol_file",

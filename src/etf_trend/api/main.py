@@ -48,12 +48,14 @@ from etf_trend.features.pattern_match import find_similar_patterns
 from etf_trend.features.trend_pred import predict_next_trend
 from etf_trend.api.services import (
     TrendScannerService,
+    BeautyShoulderScannerService,
     StockUniverseBuilder,
     add_symbol_to_file,
     read_symbol_file,
     remove_symbol_from_file,
     resolve_symbol_file,
 )
+from etf_trend.backtest.beauty_shoulder_backtest import BacktestSummary
 
 # 获取配置
 from pathlib import Path
@@ -161,6 +163,9 @@ async def root():
             "/api/picks": "获取今日推荐个股列表 (支持 size=all|large|small)",
             "/api/watchlist": "动态观察列表增删查",
             "/api/stocks/trend-scan": "扫描最近 K 日连续上涨/下跌形态的股票",
+            "/api/beauty-shoulder": "扫描美人肩形态 (加速→回踩→入场信号)",
+            "/api/early-movers": "扫描早期强势股 (20日窗口涨幅 20%-30%)",
+            "/api/beauty-shoulder/backtest": "美人肩策略历史回测",
         },
     }
 
@@ -790,6 +795,96 @@ async def scan_stocks_by_trend(
         scanner = TrendScannerService(cfg, env.tiingo_api_key)
         result = scanner.scan(k=k, t=t)
         return result.to_dict()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/beauty-shoulder")
+async def scan_beauty_shoulder(
+    days: int = Query(default=90, ge=30, le=365, description="Lookback window in days"),
+):
+    try:
+        cfg = load_config(str(DEFAULT_CONFIG))
+        scanner = BeautyShoulderScannerService(cfg)
+        result = scanner.scan_beauty_shoulder(lookback_days=days)
+        return result.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/early-movers")
+async def scan_early_movers(
+    window: int = Query(default=20, ge=5, le=60, description="Rolling window size in days"),
+    min_gain: float = Query(default=20.0, ge=5.0, le=100.0, description="Min gain % (e.g. 20)"),
+    max_gain: float = Query(default=30.0, ge=5.0, le=200.0, description="Max gain % (e.g. 30)"),
+):
+    try:
+        cfg = load_config(str(DEFAULT_CONFIG))
+        scanner = BeautyShoulderScannerService(cfg)
+        result = scanner.scan_early_movers(
+            window=window,
+            min_gain=min_gain / 100.0,
+            max_gain=max_gain / 100.0,
+        )
+        return result.to_dict()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/beauty-shoulder/backtest")
+async def beauty_shoulder_backtest(
+    start: str = Query(default="2025-10-01", description="Backtest start date (YYYY-MM-DD)"),
+    end: str = Query(default="2026-02-01", description="Backtest end date (YYYY-MM-DD)"),
+):
+    try:
+        cfg = load_config(str(DEFAULT_CONFIG))
+        scanner = BeautyShoulderScannerService(cfg)
+        result = scanner.run_backtest(start=start, end=end)
+
+        def _summary_dict(s: BacktestSummary) -> dict:
+            return {
+                "period": s.period,
+                "total_signals": s.total_signals,
+                "win_rate_2d": s.win_rate_2d,
+                "win_rate_3d": s.win_rate_3d,
+                "avg_return_2d": s.avg_return_2d,
+                "avg_return_3d": s.avg_return_3d,
+                "median_return_2d": s.median_return_2d,
+                "median_return_3d": s.median_return_3d,
+                "max_gain_2d": s.max_gain_2d,
+                "max_loss_2d": s.max_loss_2d,
+                "max_gain_3d": s.max_gain_3d,
+                "max_loss_3d": s.max_loss_3d,
+            }
+
+        return {
+            "start": start,
+            "end": end,
+            "total_trades": len(result.trades),
+            "overall": _summary_dict(result.overall) if result.overall else None,
+            "monthly": [_summary_dict(m) for m in result.monthly_stats],
+            "trades": [
+                {
+                    "symbol": t.symbol,
+                    "signal_date": t.signal_date,
+                    "entry_price": t.entry_price,
+                    "exit_date_2d": t.exit_date_2d,
+                    "exit_price_2d": t.exit_price_2d,
+                    "return_2d": t.return_2d,
+                    "exit_date_3d": t.exit_date_3d,
+                    "exit_price_3d": t.exit_price_3d,
+                    "return_3d": t.return_3d,
+                    "phase1_gain": t.phase1_gain,
+                    "pullback_depth": t.pullback_depth,
+                    "confidence": t.confidence,
+                }
+                for t in result.trades
+            ],
+        }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

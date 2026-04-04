@@ -125,3 +125,97 @@ def _extract_close(df: pd.DataFrame, sym: str) -> pd.Series | None:
 
     logger.warning(f"  {sym}: 找不到 Close 列，可用列: {list(df.columns)}")
     return None
+
+
+def _extract_ohlcv(df: pd.DataFrame, sym: str) -> pd.DataFrame | None:
+    """Extract OHLCV columns from a parquet DataFrame that may have MultiIndex columns.
+
+    Returns a DataFrame with columns: Open, High, Low, Close, Volume.
+    """
+    cols = ["Open", "High", "Low", "Close", "Volume"]
+
+    if isinstance(df.columns, pd.MultiIndex):
+        level_values_0 = df.columns.get_level_values(0)
+        level_values_1 = df.columns.get_level_values(1)
+
+        if all(c in level_values_0 for c in cols):
+            result = {}
+            for c in cols:
+                series = df[c]
+                result[c] = series.iloc[:, 0] if isinstance(series, pd.DataFrame) else series
+            return pd.DataFrame(result)
+
+        if all(c in level_values_1 for c in cols):
+            result = {}
+            for c in cols:
+                series = df.xs(c, axis=1, level=1)
+                result[c] = series.iloc[:, 0] if isinstance(series, pd.DataFrame) else series
+            return pd.DataFrame(result)
+
+        logger.warning(f"  {sym}: MultiIndex 中缺少 OHLCV 列，跳过")
+        return None
+
+    if all(c in df.columns for c in cols):
+        return df[cols].copy()
+
+    logger.warning(f"  {sym}: 缺少 OHLCV 列，可用列: {list(df.columns)}")
+    return None
+
+
+def load_local_daily_ohlcv(
+    symbols: Iterable[str],
+    start: str,
+    end: str,
+    data_dir: str | Path = DEFAULT_DATA_DIR,
+    interval: str = "1d",
+) -> dict[str, pd.DataFrame]:
+    """
+    从本地 Parquet 文件加载每日 OHLCV 数据
+
+    Args:
+        symbols: 股票/ETF 代码列表
+        start: 开始日期 (YYYY-MM-DD)
+        end: 结束日期 (YYYY-MM-DD)
+        data_dir: parquet 文件所在目录
+        interval: 数据频率，默认 "1d"
+
+    Returns:
+        dict[symbol, DataFrame]  每个 DataFrame 包含 Open/High/Low/Close/Volume 列
+        仅返回成功加载的 symbol，静默跳过缺失的。
+    """
+    symbols = list(dict.fromkeys(symbols))
+    data_dir = Path(data_dir)
+
+    if not data_dir.exists():
+        raise FileNotFoundError(
+            f"本地数据目录不存在: {data_dir}\n" "请先使用 yahoo-finance-data 项目下载数据。"
+        )
+
+    result: dict[str, pd.DataFrame] = {}
+
+    for sym in symbols:
+        parquet_path = data_dir / f"{sym}_{interval}.parquet"
+
+        if not parquet_path.exists():
+            continue
+
+        try:
+            df = pd.read_parquet(parquet_path)
+            ohlcv = _extract_ohlcv(df, sym)
+
+            if ohlcv is None:
+                continue
+
+            ohlcv.index = pd.to_datetime(ohlcv.index)
+            ohlcv = ohlcv.sort_index()
+            ohlcv = ohlcv.loc[start:end]
+
+            if ohlcv.empty:
+                continue
+
+            result[sym] = ohlcv
+
+        except Exception as e:
+            logger.error(f"  {sym}: 读取 OHLCV parquet 失败: {e}")
+
+    return result
