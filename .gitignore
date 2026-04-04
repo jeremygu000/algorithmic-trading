@@ -84,6 +84,8 @@ venv.bak/
 
 # Data cache
 cache/
+data/
+*.db
 *.parquet
 *.pkl
 

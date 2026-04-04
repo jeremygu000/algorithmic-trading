@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import Button from "@mui/material/Button";
+import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
+import LinearProgress from "@mui/material/LinearProgress";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Sidebar from "@/components/Sidebar";
@@ -40,7 +41,7 @@ interface TradePlan {
   reason: string;
 }
 
-interface PicksData {
+interface PicksMetadata {
   date: string;
   regime: string;
   risk_budget: number;
@@ -48,8 +49,13 @@ interface PicksData {
   size_label: string;
   eligible_stock_count: number;
   is_active: boolean;
+}
+
+interface ProgressInfo {
+  stage: string;
   message: string;
-  picks: TradePlan[];
+  current?: number;
+  total?: number;
 }
 
 interface WatchlistData {
@@ -57,25 +63,48 @@ interface WatchlistData {
   symbols: string[];
 }
 
+/* stage -> 0-100 base progress (before AI granular updates) */
+const STAGE_PROGRESS: Record<string, number> = {
+  config: 5,
+  prices: 20,
+  regime: 35,
+  fundamentals: 50,
+  ai: 70,
+  select: 90,
+};
+
 export default function PicksPage() {
-  const [data, setData] = useState<PicksData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [picks, setPicks] = useState<TradePlan[]>([]);
+  const [metadata, setMetadata] = useState<PicksMetadata | null>(null);
+  const [doneMessage, setDoneMessage] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState(true);
+  const [progress, setProgress] = useState<ProgressInfo | null>(null);
+  const [progressPercent, setProgressPercent] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [sizeFilter, setSizeFilter] = useState<PickSizeFilter>("all");
   const [watchlist, setWatchlist] = useState<string[]>([]);
-  const [watchInput, setWatchInput] = useState("");
+  const [symbolOptions, setSymbolOptions] = useState<string[]>([]);
   const [watchLoading, setWatchLoading] = useState(false);
   const [watchError, setWatchError] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
 
+  const eventSourceRef = useRef<EventSource | null>(null);
+
   const handleFilterChange = (nextFilter: PickSizeFilter) => {
     if (nextFilter === sizeFilter) return;
-    setLoading(true);
+    setStreaming(true);
     setError(null);
+    setPicks([]);
+    setMetadata(null);
+    setDoneMessage(null);
+    setProgress(null);
+    setProgressPercent(0);
     setSizeFilter(nextFilter);
   };
 
-  const loadWatchlist = () => {
+  /* ── watchlist + symbol suggestions ──────────────────────── */
+
+  const loadWatchlist = useCallback(() => {
     fetch(`${API_BASE}/api/watchlist`)
       .then(async (res) => {
         if (!res.ok) {
@@ -88,46 +117,31 @@ export default function PicksPage() {
       .catch((e: unknown) => {
         setWatchError(e instanceof Error ? e.message : "加载 watch list 失败");
       });
-  };
+  }, []);
 
-  const addWatchSymbol = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!watchInput.trim()) return;
+  const loadSymbols = useCallback(() => {
+    fetch(`${API_BASE}/api/symbols`)
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as { symbols: string[] };
+        setSymbolOptions(data.symbols || []);
+      })
+      .catch(() => { /* non-critical — autocomplete just won't have suggestions */ });
+  }, []);
+
+  const syncWatchlist = useCallback((newSymbols: string[]) => {
     setWatchLoading(true);
     setWatchError(null);
 
     fetch(`${API_BASE}/api/watchlist`, {
-      method: "POST",
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ symbol: watchInput.trim().toUpperCase() }),
+      body: JSON.stringify({ symbols: newSymbols }),
     })
       .then(async (res) => {
         if (!res.ok) {
           const body = (await res.json().catch(() => null)) as { detail?: string } | null;
-          throw new Error(body?.detail || "添加失败");
-        }
-        return res.json() as Promise<WatchlistData>;
-      })
-      .then((res) => {
-        setWatchlist(res.symbols || []);
-        setWatchInput("");
-        setReloadTick((n) => n + 1);
-      })
-      .catch((e: unknown) => {
-        setWatchError(e instanceof Error ? e.message : "添加失败");
-      })
-      .finally(() => setWatchLoading(false));
-  };
-
-  const removeWatchSymbol = (symbol: string) => {
-    setWatchLoading(true);
-    setWatchError(null);
-
-    fetch(`${API_BASE}/api/watchlist/${symbol}`, { method: "DELETE" })
-      .then(async (res) => {
-        if (!res.ok) {
-          const body = (await res.json().catch(() => null)) as { detail?: string } | null;
-          throw new Error(body?.detail || "删除失败");
+          throw new Error(body?.detail || "更新 watch list 失败");
         }
         return res.json() as Promise<WatchlistData>;
       })
@@ -136,63 +150,122 @@ export default function PicksPage() {
         setReloadTick((n) => n + 1);
       })
       .catch((e: unknown) => {
-        setWatchError(e instanceof Error ? e.message : "删除失败");
+        setWatchError(e instanceof Error ? e.message : "更新 watch list 失败");
       })
       .finally(() => setWatchLoading(false));
-  };
+  }, []);
+
+  /* ── SSE streaming ──────────────────────────────────────── */
 
   useEffect(() => {
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 45000);
+    setPicks([]);
+    setMetadata(null);
+    setDoneMessage(null);
+    setError(null);
+    setProgress(null);
+    setProgressPercent(0);
+    setStreaming(true);
 
-    fetch(`${API_BASE}/api/picks?size=${sizeFilter}`, {
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const body = (await res.json().catch(() => null)) as { detail?: string } | null;
-          throw new Error(body?.detail || "加载推荐失败");
+    const url = `${API_BASE}/api/picks/stream?size=${sizeFilter}`;
+    const es = new EventSource(url);
+    eventSourceRef.current = es;
+
+    es.addEventListener("progress", (ev) => {
+      const info: ProgressInfo = JSON.parse(ev.data);
+      setProgress(info);
+      const base = STAGE_PROGRESS[info.stage] ?? 0;
+      if (info.current != null && info.total != null && info.total > 0) {
+        const stageRange = info.stage === "ai" ? 20 : 10;
+        setProgressPercent(base + Math.round((info.current / info.total) * stageRange));
+      } else {
+        setProgressPercent(base);
+      }
+    });
+
+    es.addEventListener("metadata", (ev) => {
+      const meta: PicksMetadata = JSON.parse(ev.data);
+      setMetadata(meta);
+    });
+
+    es.addEventListener("pick", (ev) => {
+      const plan: TradePlan = JSON.parse(ev.data);
+      setPicks((prev) => [...prev, plan]);
+    });
+
+    es.addEventListener("done", (ev) => {
+      const info = JSON.parse(ev.data) as { total: number; message: string };
+      setDoneMessage(info.message);
+      setProgressPercent(100);
+      setStreaming(false);
+      es.close();
+    });
+
+    es.addEventListener("error", (ev) => {
+      /* SSE spec fires a generic Event on connection errors,
+         but our backend sends a named "error" event with JSON data. */
+      const me = ev as MessageEvent;
+      if (me.data) {
+        try {
+          const info = JSON.parse(me.data) as { detail: string };
+          setError(info.detail);
+        } catch {
+          setError("连接异常，请稍后重试");
         }
-        return res.json() as Promise<PicksData>;
-      })
-      .then(setData)
-      .catch((e: unknown) => {
-        if (e instanceof Error && e.name === "AbortError") {
-          setError("请求超时（45秒），请稍后重试或缩小筛选范围");
-          return;
-        }
-        setError(e instanceof Error ? e.message : "未知错误");
-      })
-      .finally(() => {
-        window.clearTimeout(timeoutId);
-        setLoading(false);
-      });
+      } else {
+        setError("连接异常，请稍后重试");
+      }
+      setStreaming(false);
+      es.close();
+    });
+
+    es.onerror = () => {
+      /* Connection-level error (e.g. server down, CORS). */
+      if (es.readyState === EventSource.CLOSED) return;
+      setError("连接服务器失败，请检查后端是否运行");
+      setStreaming(false);
+      es.close();
+    };
 
     return () => {
-      window.clearTimeout(timeoutId);
-      controller.abort();
+      es.close();
+      eventSourceRef.current = null;
     };
   }, [sizeFilter, reloadTick]);
 
   useEffect(() => {
     loadWatchlist();
-  }, []);
+    loadSymbols();
+  }, [loadWatchlist, loadSymbols]);
 
-  if (loading) {
+  /* ── full-page loading (streaming, no metadata yet) ───── */
+
+  if (streaming && !metadata && picks.length === 0) {
     return (
       <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
         <Sidebar />
-        <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+        <Box
+          component="main"
+          sx={{ flex: 1, overflowY: "auto", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, width: 280 }}>
             <CircularProgress size={32} />
-            <Typography sx={{ color: "text.secondary" }}>筛选优质标的中...</Typography>
+            <Typography sx={{ color: "text.secondary", textAlign: "center" }}>
+              {progress?.message || "筛选优质标的中..."}
+            </Typography>
+            <LinearProgress
+              variant="determinate"
+              value={progressPercent}
+              sx={{ width: "100%", borderRadius: 1, height: 4 }}
+            />
           </Box>
         </Box>
       </Box>
     );
   }
 
-  if (error) {
+  /* ── hard error (no data at all) ────────────────────────── */
+
+  if (error && !metadata && picks.length === 0) {
     return (
       <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
         <Sidebar />
@@ -215,6 +288,8 @@ export default function PicksPage() {
     );
   }
 
+  /* ── main UI (progressive) ──────────────────────────────── */
+
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <Sidebar />
@@ -225,6 +300,23 @@ export default function PicksPage() {
           description="基于多因子模型的每日精选 (动量 + 波动率 + 趋势)"
         />
         <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5, display: "flex", flexDirection: "column", gap: 4 }}>
+
+          {/* streaming progress bar */}
+          {streaming && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                <CircularProgress size={16} />
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  {progress?.message || "处理中..."}
+                </Typography>
+              </Box>
+              <LinearProgress
+                variant="determinate"
+                value={progressPercent}
+                sx={{ borderRadius: 1, height: 4 }}
+              />
+            </Box>
+          )}
 
           <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
             <Box
@@ -240,10 +332,11 @@ export default function PicksPage() {
                 color: "text.secondary",
               }}
             >
-              📅 {data?.date}
+              {metadata?.date || "..."}
             </Box>
           </Box>
 
+          {/* watchlist card */}
           <Card variant="outlined" sx={{ borderRadius: 2 }}>
             <CardContent sx={{ display: "flex", flexDirection: "column", gap: 2, p: 2.5, "&:last-child": { pb: 2.5 } }}>
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -255,53 +348,51 @@ export default function PicksPage() {
                 </Typography>
               </Box>
 
-              <Box component="form" onSubmit={addWatchSymbol} sx={{ display: "flex", gap: 1.5 }}>
-                <TextField
-                  size="small"
-                  value={watchInput}
-                  onChange={(e) => setWatchInput(e.target.value.toUpperCase())}
-                  placeholder="输入股票代码，例如 PLTR"
-                  sx={{ flex: 1 }}
-                  slotProps={{ htmlInput: { style: { fontSize: "0.875rem" } } }}
-                />
-                <Button
-                  type="submit"
-                  variant="outlined"
-                  disabled={watchLoading}
-                  size="small"
-                  sx={{ px: 2, whiteSpace: "nowrap" }}
-                >
-                  添加
-                </Button>
-              </Box>
+              <Autocomplete
+                multiple
+                freeSolo
+                limitTags={8}
+                options={symbolOptions.filter((s) => !watchlist.includes(s))}
+                value={watchlist}
+                disabled={watchLoading}
+                onChange={(_e, newValue) => {
+                  const normalized = newValue.map((v) => v.trim().toUpperCase()).filter(Boolean);
+                  const unique = [...new Set(normalized)];
+                  syncWatchlist(unique);
+                }}
+                getLimitTagsText={(more) => `+${more}`}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder={watchlist.length === 0 ? "输入股票代码，例如 PLTR" : "继续输入添加..."}
+                    slotProps={{ htmlInput: { ...params.inputProps, style: { fontSize: "0.875rem" } } }}
+                  />
+                )}
+                filterOptions={(options, { inputValue }) => {
+                  const upper = inputValue.toUpperCase();
+                  if (!upper) return options.slice(0, 20);
+                  return options.filter((o) => o.startsWith(upper)).slice(0, 20);
+                }}
+                ChipProps={{ size: "small", sx: { fontSize: "0.75rem" } }}
+                sx={{
+                  "& .MuiAutocomplete-inputRoot": {
+                    maxHeight: 120,
+                    overflowY: "auto",
+                    flexWrap: "wrap",
+                  },
+                }}
+              />
 
               {watchError && (
                 <Typography variant="caption" sx={{ color: "error.main" }}>
                   {watchError}
                 </Typography>
               )}
-
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                {watchlist.length > 0 ? (
-                  watchlist.map((sym) => (
-                    <Chip
-                      key={sym}
-                      label={sym}
-                      size="small"
-                      disabled={watchLoading}
-                      onDelete={() => removeWatchSymbol(sym)}
-                      sx={{ fontSize: "0.75rem" }}
-                    />
-                  ))
-                ) : (
-                  <Typography variant="caption" sx={{ color: "text.disabled" }}>
-                    暂无 watch list 标的
-                  </Typography>
-                )}
-              </Box>
             </CardContent>
           </Card>
 
+          {/* size filter toggle */}
           <Card variant="outlined" sx={{ borderRadius: 2 }}>
             <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
               <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2 }}>
@@ -328,36 +419,39 @@ export default function PicksPage() {
             </CardContent>
           </Card>
 
-          <Box
-            sx={{
-              borderRadius: 2,
-              p: 2.5,
-              border: "1px solid",
-              borderColor: data?.is_active ? "success.main" : "warning.main",
-              bgcolor: data?.is_active ? "rgba(46,160,67,0.08)" : "rgba(245,158,11,0.08)",
-            }}
-          >
-            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
-              <Typography sx={{ fontSize: "1.25rem", mt: 0.25 }}>
-                {data?.is_active ? "✅" : "⚠️"}
-              </Typography>
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: data?.is_active ? "success.main" : "warning.main" }}>
-                  系统状态: {data?.regime}
-                </Typography>
-                <Typography variant="caption" sx={{ display: "block", mb: 0.5, color: data?.is_active ? "success.main" : "warning.main", opacity: 0.8 }}>
-                  当前范围: {data?.size_label || "全部"} | 可参与筛选: {data?.eligible_stock_count ?? 0} 只
-                </Typography>
-                <Typography variant="body2" sx={{ color: data?.is_active ? "success.main" : "warning.main", opacity: 0.9 }}>
-                  {data?.message}
-                </Typography>
+          {/* regime status */}
+          {metadata && (
+            <Box
+              sx={{
+                borderRadius: 2,
+                p: 2.5,
+                border: "1px solid",
+                borderColor: metadata.is_active ? "success.main" : "warning.main",
+                bgcolor: metadata.is_active ? "rgba(46,160,67,0.08)" : "rgba(245,158,11,0.08)",
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: metadata.is_active ? "success.main" : "warning.main" }}>
+                    系统状态: {metadata.regime}
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: "block", mb: 0.5, color: metadata.is_active ? "success.main" : "warning.main", opacity: 0.8 }}>
+                    当前范围: {metadata.size_label || "全部"} | 可参与筛选: {metadata.eligible_stock_count ?? 0} 只
+                  </Typography>
+                  {doneMessage && (
+                    <Typography variant="body2" sx={{ color: metadata.is_active ? "success.main" : "warning.main", opacity: 0.9 }}>
+                      {doneMessage}
+                    </Typography>
+                  )}
+                </Box>
               </Box>
             </Box>
-          </Box>
+          )}
 
-          {data?.picks && data.picks.length > 0 ? (
+          {/* picks grid (progressive) */}
+          {picks.length > 0 ? (
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 3 }}>
-              {data.picks.map((pick, idx) => (
+              {picks.map((pick, idx) => (
                 <Card
                   key={pick.symbol}
                   component={Link}
@@ -494,10 +588,9 @@ export default function PicksPage() {
                 </Card>
               ))}
             </Box>
-          ) : (
+          ) : !streaming ? (
             <Card variant="outlined" sx={{ borderRadius: 3 }}>
               <CardContent sx={{ p: 8, textAlign: "center", "&:last-child": { pb: 8 } }}>
-                <Typography sx={{ fontSize: "3.5rem", mb: 3, opacity: 0.2 }}>📭</Typography>
                 <Typography variant="h6" sx={{ color: "text.primary", mb: 1 }}>
                   暂无推荐
                 </Typography>
@@ -506,8 +599,9 @@ export default function PicksPage() {
                 </Typography>
               </CardContent>
             </Card>
-          )}
+          ) : null}
 
+          {/* risk disclaimer */}
           <Card variant="outlined" sx={{ borderRadius: 2, bgcolor: "background.paper", opacity: 0.9 }}>
             <CardContent sx={{ p: 3, "&:last-child": { pb: 3 } }}>
               <Typography
@@ -521,7 +615,7 @@ export default function PicksPage() {
                   mb: 1.5,
                 }}
               >
-                ⚠️ 风险提示
+                风险提示
               </Typography>
               <Box component="ul" sx={{ m: 0, pl: 2.5, display: "flex", flexDirection: "column", gap: 0.75 }}>
                 <Box component="li">

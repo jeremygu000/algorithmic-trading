@@ -1461,6 +1461,34 @@ export default function TradingPage() {
     });
   }
 
+  const initialLoading = accountLoading && positionsLoading && ordersLoading;
+
+  if (initialLoading) {
+    return (
+      <Box
+        sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}
+      >
+        <Sidebar />
+        <Box
+          component="main"
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 2,
+          }}
+        >
+          <CircularProgress size={32} />
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            加载交易数据中...
+          </Typography>
+        </Box>
+      </Box>
+    );
+  }
+
   return (
     <Box
       sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}

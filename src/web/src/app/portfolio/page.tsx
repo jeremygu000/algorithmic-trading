@@ -721,6 +721,30 @@ export default function PortfolioPage() {
     return () => controller.abort();
   }, [tick]);
 
+  if (loading) {
+    return (
+      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+        <Sidebar />
+        <Box
+          component="main"
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 2,
+          }}
+        >
+          <CircularProgress size={32} />
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            加载投资组合数据中...
+          </Typography>
+        </Box>
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <Sidebar />
@@ -742,25 +766,8 @@ export default function PortfolioPage() {
             gap: 4,
           }}
         >
-          {loading && (
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: "40vh",
-                gap: 2,
-              }}
-            >
-              <CircularProgress size={40} />
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                加载投资组合数据中...
-              </Typography>
-            </Box>
-          )}
 
-          {!loading && error && (
+          {error && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <Alert
                 severity="error"
@@ -781,7 +788,7 @@ export default function PortfolioPage() {
             </Box>
           )}
 
-          {!loading && !error && data && (
+          {!error && data && (
             <>
               <AccountOverview account={data.account} risk={data.risk_metrics} />
 

@@ -13,7 +13,6 @@ from datetime import date
 # 导入 API 应用
 from etf_trend.api.main import app
 from etf_trend.regime.engine import RegimeState
-from etf_trend.config.settings import AppConfig
 
 client = TestClient(app)
 
@@ -130,9 +129,9 @@ def test_analyze_stock_endpoint(
     assert "stop_levels" in data
     assert "tp_levels" in data
 
-    # Check Chart
-    assert "chart_base64" in data
-    assert len(data["chart_base64"]) > 100  # 应该是比较长的 Base64 字符串
+    # Check OHLCV data (replaces the old chart_base64)
+    assert "ohlcv" in data
+    assert isinstance(data["ohlcv"], list)
 
 
 @patch("etf_trend.api.main.load_prices_with_fallback")
@@ -315,14 +314,14 @@ def test_get_stock_picks_small_empty_returns_explain_message(
     assert "无可用标的" in data["message"]
 
 
-@patch("etf_trend.api.main.load_config")
-def test_watchlist_endpoints(mock_load_config, tmp_path):
-    """测试 watchlist 增删查 API."""
-    watchlist_file = tmp_path / "watchlist_test.txt"
-    cfg = AppConfig.model_validate(
-        {"universe": {"dynamic_stock_symbols_file": str(watchlist_file)}}
-    )
-    mock_load_config.return_value = cfg
+@patch("etf_trend.api.main.init_db")
+def test_watchlist_endpoints(mock_init_db, tmp_path):
+    """测试 watchlist 增删查 API (SQLite backend)."""
+    import asyncio
+    from etf_trend.db.engine import init_db as real_init_db
+
+    db_path = tmp_path / "test.db"
+    asyncio.run(real_init_db(f"sqlite+aiosqlite:///{db_path}"))
 
     # Add
     add_resp = client.post("/api/watchlist", json={"symbol": "pltr"})

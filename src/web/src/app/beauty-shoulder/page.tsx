@@ -567,11 +567,12 @@ function ReturnDistributionChart({ trades }: { trades: BacktestTrade[] }) {
   );
 }
 
-function BeautyShoulderTab() {
-  const [data, setData] = useState<BeautyShoulderData | null>(null);
-  const [loading, setLoading] = useState(true);
+function BeautyShoulderTab({ initialData }: { initialData?: BeautyShoulderData | null }) {
+  const [data, setData] = useState<BeautyShoulderData | null>(initialData ?? null);
+  const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [skipInitial] = useState(!!initialData);
   const [modalSymbol, setModalSymbol] = useState<{ symbol: string; name: string } | null>(null);
 
   const handleRetry = () => {
@@ -581,6 +582,8 @@ function BeautyShoulderTab() {
   };
 
   useEffect(() => {
+    if (skipInitial && tick === 0) return;
+
     const controller = new AbortController();
 
     fetch(`${API_BASE}/api/beauty-shoulder?days=90`, {
@@ -603,7 +606,7 @@ function BeautyShoulderTab() {
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, [tick]);
+  }, [tick, skipInitial]);
 
   if (loading) return <LoadingState message="扫描中..." />;
   if (error)
@@ -1618,6 +1621,37 @@ function BacktestTab() {
 
 export default function BeautyShoulderPage() {
   const [tab, setTab] = useState(0);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [initialData, setInitialData] = useState<BeautyShoulderData | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(`${API_BASE}/api/beauty-shoulder?days=90`, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("fetch failed");
+        return res.json() as Promise<BeautyShoulderData>;
+      })
+      .then(setInitialData)
+      .catch(() => {})
+      .finally(() => setInitialLoading(false));
+
+    return () => controller.abort();
+  }, []);
+
+  if (initialLoading) {
+    return (
+      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+        <Sidebar />
+        <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <CircularProgress size={32} />
+            <Typography sx={{ color: "text.secondary" }}>扫描美人肩形态中...</Typography>
+          </Box>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -1671,7 +1705,7 @@ export default function BeautyShoulderPage() {
             </Tabs>
           </Card>
 
-          {tab === 0 && <BeautyShoulderTab />}
+          {tab === 0 && <BeautyShoulderTab initialData={initialData} />}
           {tab === 1 && <EarlyMoversTab />}
           {tab === 2 && <BacktestTab />}
         </Box>

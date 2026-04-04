@@ -19,27 +19,21 @@ API 文档：
 from __future__ import annotations
 
 import asyncio
-import base64
-import io
 import logging
+import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
-from typing import Literal
+from typing import Any, Literal
+
+from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse
 import pandas as pd
 import numpy as np
-import matplotlib
 from pydantic import BaseModel, Field
 
-# 服务端绘图使用非交互后端，避免线程环境触发 GUI backend 错误
-matplotlib.use("Agg")
-import mplfinance as mpf
-
-# 配置中文字体 (macOS)
-matplotlib.rcParams["font.sans-serif"] = ["PingFang SC", "Arial Unicode MS", "SimHei"]
-matplotlib.rcParams["axes.unicode_minus"] = False
 
 from etf_trend.config.settings import EnvSettings, load_config
 from etf_trend.analysis.attribution import calculate_alpha_beta
@@ -59,10 +53,14 @@ from etf_trend.api.services import (
     TrendScannerService,
     BeautyShoulderScannerService,
     StockUniverseBuilder,
-    add_symbol_to_file,
     read_symbol_file,
-    remove_symbol_from_file,
-    resolve_symbol_file,
+)
+from etf_trend.db import init_db, get_session
+from etf_trend.db.crud import (
+    list_watchlist,
+    add_symbol as db_add_symbol,
+    remove_symbol as db_remove_symbol,
+    set_watchlist as db_set_watchlist,
 )
 from etf_trend.backtest.beauty_shoulder_backtest import BacktestSummary
 from etf_trend.backtest.metrics import extended_stats
@@ -73,6 +71,26 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG = PACKAGE_ROOT / "configs" / "default.yaml"
+
+# ── 简易内存缓存 ──
+_cache: dict[str, tuple[float, Any]] = {}
+_CACHE_TTL = 300  # 5 minutes
+
+
+def _cache_get(key: str) -> Any | None:
+    entry = _cache.get(key)
+    if entry is None:
+        return None
+    ts, value = entry
+    if time.time() - ts > _CACHE_TTL:
+        del _cache[key]
+        return None
+    return value
+
+
+def _cache_set(key: str, value: Any) -> None:
+    _cache[key] = (time.time(), value)
+
 
 # =============================================================================
 # Picks 筛选配置
@@ -145,6 +163,8 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
     """启动 Alpaca trade stream + 风控监控；关闭时优雅停止。"""
+    await init_db()
+
     env = EnvSettings()
     if env.alpaca_api_key and env.alpaca_secret_key:
         bridge = get_trade_bridge(
@@ -222,7 +242,8 @@ async def root():
             "/api/stock/{symbol}": "查询单个股票分析 (含蜡烛图)",
             "/api/market": "查询市场状态",
             "/api/picks": "获取今日推荐个股列表 (支持 size=all|large|small)",
-            "/api/watchlist": "动态观察列表增删查",
+            "/api/watchlist": "动态观察列表增删查 (GET/POST/PUT/DELETE)",
+            "/api/symbols": "获取所有可用股票代码 (Russell 3000 + 2000)",
             "/api/stocks/trend-scan": "扫描最近 K 日连续上涨/下跌形态的股票",
             "/api/beauty-shoulder": "扫描美人肩形态 (加速→回踩→入场信号)",
             "/api/early-movers": "扫描早期强势股 (20日窗口涨幅 20%-30%)",
@@ -244,6 +265,11 @@ async def get_market_status():
     - risk_budget: 风险预算 (0-1)
     - signals: 各信号值
     """
+    cache_key = f"market_{date.today()}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         cfg = load_config(str(DEFAULT_CONFIG))
         env = EnvSettings()
@@ -270,12 +296,14 @@ async def get_market_status():
             prices, vix=None, market_symbol=cfg.universe.market_benchmark
         )
 
-        return {
+        result = {
             "date": str(end_date),
             "regime": regime_state.regime,
             "risk_budget": regime_state.risk_budget,
             "signals": regime_state.signals,
         }
+        _cache_set(cache_key, result)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -474,103 +502,23 @@ async def analyze_stock(symbol: str, days: int = 90):
         tp2 = entry_moderate + (atr * 6)
         tp3 = entry_moderate + (atr * 10)
 
-        # 生成蜡烛图
-        chart_data = prices[symbol].iloc[-days:]
-        chart_df = pd.DataFrame(
-            {
-                "Open": chart_data.shift(1),
-                "High": chart_data.rolling(2).max(),
-                "Low": chart_data.rolling(2).min(),
-                "Close": chart_data,
-                "Volume": 0,
-            }
-        )
-        chart_df = chart_df.dropna()
-        chart_df.index = pd.DatetimeIndex(chart_df.index)
-
-        # 计算移动平均线并对齐索引
-        ma20_series = prices[symbol].rolling(20).mean()
-        ma50_series = prices[symbol].rolling(50).mean()
-
-        # 只保留 chart_df 索引范围内的数据
-        ma20_aligned = ma20_series.reindex(chart_df.index)
-        ma50_aligned = ma50_series.reindex(chart_df.index)
-
-        # 添加移动平均线 (只在有足够数据时添加)
-        addplots = []
-        if ma20_aligned.notna().sum() > 10:
-            addplots.append(mpf.make_addplot(ma20_aligned, color="blue", width=1))
-        if ma50_aligned.notna().sum() > 10:
-            addplots.append(mpf.make_addplot(ma50_aligned, color="orange", width=1))
-
-        # 生成图表到内存
-        buf = io.BytesIO()
-
-        # 使用英文标题避免字体问题
-        stock_name = StockSelector.STOCK_NAMES.get(symbol, symbol)
-        # 如果是中文名称，只显示股票代码
-        if any("\u4e00" <= c <= "\u9fff" for c in stock_name):
-            chart_title = symbol
-        else:
-            chart_title = f"{symbol} - {stock_name}"
-
-        # 定义关键价位水平线
-        hlines_dict = dict(
-            hlines=[
-                # 入场价位 (绿色)
-                entry_aggressive,
-                entry_moderate,
-                entry_conservative,
-                # 止损价位 (红色)
-                stop_tight,
-                stop_normal,
-                stop_loose,
-                # 止盈目标 (蓝色)
-                tp1,
-                tp2,
-                tp3,
-            ],
-            colors=[
-                "#22c55e",
-                "#22c55e",
-                "#22c55e",  # 绿色 - 入场
-                "#ef4444",
-                "#ef4444",
-                "#ef4444",  # 红色 - 止损
-                "#3b82f6",
-                "#3b82f6",
-                "#3b82f6",  # 蓝色 - 止盈
-            ],
-            linestyle=[
-                "--",
-                "-",
-                ":",  # 入场: 虚线/实线/点线
-                "--",
-                "-",
-                ":",  # 止损
-                "--",
-                "-",
-                ":",  # 止盈
-            ],
-            linewidths=[0.8, 1.2, 0.8, 0.8, 1.2, 0.8, 0.8, 1.2, 0.8],
-        )
-
-        plot_kwargs = dict(
-            type="candle",
-            style="charles",
-            title=chart_title,
-            ylabel="Price ($)",
-            savefig=dict(fname=buf, dpi=150, format="png"),
-            figratio=(14, 8),
-            hlines=hlines_dict,
-        )
-        if addplots:
-            plot_kwargs["addplot"] = addplots
-
-        mpf.plot(chart_df, **plot_kwargs)
-        buf.seek(0)
-        chart_base64 = base64.b64encode(buf.read()).decode("utf-8")
-        buf.close()
+        # ── 加载真实 OHLCV K线数据 (用于前端 lightweight-charts) ──
+        ohlcv_start = str(end_date - timedelta(days=days + 30))
+        ohlcv_map = load_local_daily_ohlcv([symbol], ohlcv_start, str(end_date))
+        ohlcv_bars: list[dict] = []
+        if symbol in ohlcv_map:
+            ohlcv_df = ohlcv_map[symbol].iloc[-days:]
+            for dt, row in ohlcv_df.iterrows():
+                ohlcv_bars.append(
+                    {
+                        "date": str(dt.date()),
+                        "open": round(float(row["Open"]), 4),
+                        "high": round(float(row["High"]), 4),
+                        "low": round(float(row["Low"]), 4),
+                        "close": round(float(row["Close"]), 4),
+                        "volume": int(row["Volume"]),
+                    }
+                )
 
         return {
             "symbol": symbol,
@@ -623,7 +571,7 @@ async def analyze_stock(symbol: str, days: int = 90):
                 "tp3_label": "TP3 (ATR×10)",
             },
             "market_regime": regime_state.regime,
-            "chart_base64": chart_base64,
+            "ohlcv": ohlcv_bars,
         }
 
     except HTTPException:
@@ -634,32 +582,20 @@ async def analyze_stock(symbol: str, days: int = 90):
 
 @app.get("/api/watchlist")
 async def get_watchlist():
-    """获取动态观察列表（来源于 dynamic_stock_symbols_file）。"""
     try:
-        cfg = load_config(str(DEFAULT_CONFIG))
-        file_path = cfg.universe.dynamic_stock_symbols_file
-        symbols = read_symbol_file(file_path)
-        return {
-            "file": str(resolve_symbol_file(file_path)),
-            "count": len(symbols),
-            "symbols": symbols,
-        }
+        async for session in get_session():
+            symbols = await list_watchlist(session)
+            return {"count": len(symbols), "symbols": symbols}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/watchlist")
 async def add_watchlist_symbol(payload: WatchlistSymbolPayload):
-    """向动态观察列表添加股票代码。"""
     try:
-        cfg = load_config(str(DEFAULT_CONFIG))
-        file_path = cfg.universe.dynamic_stock_symbols_file
-        symbols = add_symbol_to_file(file_path, payload.symbol)
-        return {
-            "file": str(resolve_symbol_file(file_path)),
-            "count": len(symbols),
-            "symbols": symbols,
-        }
+        async for session in get_session():
+            symbols = await db_add_symbol(session, payload.symbol)
+            return {"count": len(symbols), "symbols": symbols}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -668,18 +604,40 @@ async def add_watchlist_symbol(payload: WatchlistSymbolPayload):
 
 @app.delete("/api/watchlist/{symbol}")
 async def delete_watchlist_symbol(symbol: str):
-    """从动态观察列表删除股票代码。"""
     try:
-        cfg = load_config(str(DEFAULT_CONFIG))
-        file_path = cfg.universe.dynamic_stock_symbols_file
-        symbols = remove_symbol_from_file(file_path, symbol)
-        return {
-            "file": str(resolve_symbol_file(file_path)),
-            "count": len(symbols),
-            "symbols": symbols,
-        }
+        async for session in get_session():
+            symbols = await db_remove_symbol(session, symbol)
+            return {"count": len(symbols), "symbols": symbols}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class WatchlistSetPayload(BaseModel):
+    symbols: list[str]
+
+
+@app.put("/api/watchlist")
+async def set_watchlist_endpoint(payload: WatchlistSetPayload):
+    try:
+        async for session in get_session():
+            symbols = await db_set_watchlist(session, payload.symbols)
+            return {"count": len(symbols), "symbols": symbols}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/symbols")
+async def list_available_symbols():
+    try:
+        cfg = load_config(str(DEFAULT_CONFIG))
+        r3000 = read_symbol_file(cfg.universe.russell_3000_symbols_file)
+        r2000 = read_symbol_file(cfg.universe.russell_2000_symbols_file)
+        all_symbols = list(dict.fromkeys(r3000 + r2000))
+        return {"count": len(all_symbols), "symbols": all_symbols}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -838,6 +796,241 @@ async def get_stock_picks(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Picks SSE 流式接口
+# =============================================================================
+
+_ai_pool = ThreadPoolExecutor(max_workers=6)
+
+
+def _sse_event(event: str, data: str) -> str:
+    return f"event: {event}\ndata: {data}\n\n"
+
+
+def _run_ai_for_symbol(
+    sym: str, prices: pd.DataFrame, window: int = 60, future_window: int = 20
+) -> tuple[str, dict | None]:
+    """在线程池中运行单只股票的 AI 分析（DTW + 线性回归）。"""
+    series = prices[sym].dropna()
+    if len(series) < 80:
+        return sym, None
+    pattern = find_similar_patterns(
+        series, series.iloc[:-20], window=window, future_window=future_window
+    )
+    trend = predict_next_trend(series, lookback_days=20, forecast_days=5)
+    return sym, {"pattern": pattern, "trend": trend}
+
+
+@app.get("/api/picks/stream")
+async def stream_stock_picks(
+    size: str = Query(
+        default="all",
+        description="规模筛选: all/large/small 或 全部/大盘股/小盘股",
+    )
+):
+    """SSE 流式返回推荐个股，前端逐步显示结果。"""
+
+    async def generate():
+        import json as _json
+
+        try:
+            pick_size = _normalize_pick_size(size)
+
+            yield _sse_event("progress", _json.dumps({"stage": "config", "message": "加载配置..."}))
+
+            cfg = load_config(str(DEFAULT_CONFIG))
+            env = EnvSettings()
+
+            end_date = date.today()
+            start_date = end_date - timedelta(days=365)
+
+            universe_builder = StockUniverseBuilder(cfg)
+            base_stock_pool = universe_builder.base_candidates()
+
+            all_symbols = list(
+                set(
+                    cfg.universe.equity_symbols
+                    + cfg.universe.defensive_symbols
+                    + base_stock_pool
+                    + list(StockSelector.SECTOR_ETF_MAP.values())
+                )
+            )
+
+            tiingo_api_key = (
+                env.tiingo_api_key
+                if cfg.providers.tiingo.enabled and len(all_symbols) <= PICKS_TIINGO_MAX_SYMBOLS
+                else None
+            )
+
+            yield _sse_event(
+                "progress",
+                _json.dumps(
+                    {
+                        "stage": "prices",
+                        "message": f"加载 {len(all_symbols)} 只标的的价格数据...",
+                    }
+                ),
+            )
+
+            prices = await asyncio.to_thread(
+                load_prices_with_fallback,
+                all_symbols,
+                str(start_date),
+                str(end_date),
+                tiingo_api_key,
+                cache_enabled=cfg.cache.enabled,
+                cache_dir=cfg.cache.dir,
+            )
+            prices = prices.ffill().dropna(how="all")
+
+            yield _sse_event(
+                "progress", _json.dumps({"stage": "regime", "message": "检测市场状态..."})
+            )
+
+            regime_engine = RegimeEngine(
+                ma_window=cfg.regime.ma_window,
+                momentum_window=cfg.regime.momentum_window,
+                vix_threshold=cfg.regime.vix_threshold,
+            )
+            regime_state = regime_engine.detect(
+                prices, vix=None, market_symbol=cfg.universe.market_benchmark
+            )
+
+            yield _sse_event(
+                "progress",
+                _json.dumps(
+                    {
+                        "stage": "fundamentals",
+                        "message": "获取基本面数据...",
+                    }
+                ),
+            )
+
+            available_stocks = [s for s in base_stock_pool if s in prices.columns]
+            fundamentals_all = await asyncio.to_thread(
+                load_yahoo_fundamentals,
+                available_stocks,
+                cache_enabled=cfg.cache.enabled,
+                cache_dir=cfg.cache.dir,
+            )
+            universe_result = universe_builder.build(prices=prices, fundamentals=fundamentals_all)
+
+            russell_2000_symbols = set(read_symbol_file(cfg.universe.russell_2000_symbols_file))
+            russell_3000_symbols = set(read_symbol_file(cfg.universe.russell_3000_symbols_file))
+            filtered_stock_pool = _filter_stock_pool_by_size(
+                universe_result.symbols,
+                pick_size,
+                russell_2000_symbols=russell_2000_symbols,
+                russell_3000_symbols=russell_3000_symbols,
+            )
+
+            metadata = {
+                "date": str(end_date),
+                "regime": regime_state.regime,
+                "risk_budget": regime_state.risk_budget,
+                "size": pick_size,
+                "size_label": PICK_SIZE_LABEL[pick_size],
+                "universe_mode": universe_result.mode,
+                "universe_input_count": universe_result.input_count,
+                "universe_selected_count": universe_result.output_count,
+                "russell2000_count": len(russell_2000_symbols),
+                "russell3000_count": len(russell_3000_symbols),
+                "eligible_stock_count": len(filtered_stock_pool),
+                "is_active": regime_state.regime == "RISK_ON",
+            }
+            yield _sse_event("metadata", _json.dumps(metadata))
+
+            if not filtered_stock_pool:
+                metadata["message"] = (
+                    f"当前股票池在筛选范围【{PICK_SIZE_LABEL[pick_size]}】下无可用标的。"
+                    "建议扩大候选池或更新 Russell 指数成分文件。"
+                )
+                yield _sse_event("done", _json.dumps({"total": 0, "message": metadata["message"]}))
+                return
+
+            yield _sse_event(
+                "progress",
+                _json.dumps(
+                    {
+                        "stage": "ai",
+                        "message": f"AI 分析 {min(len(filtered_stock_pool), PICKS_AI_MAX_SYMBOLS)} 只标的...",
+                    }
+                ),
+            )
+
+            ai_analysis_map: dict[str, dict] = {}
+            ai_symbols = filtered_stock_pool[:PICKS_AI_MAX_SYMBOLS]
+            loop = asyncio.get_running_loop()
+            futures = [
+                loop.run_in_executor(_ai_pool, _run_ai_for_symbol, sym, prices)
+                for sym in ai_symbols
+            ]
+            ai_done = 0
+            for coro in asyncio.as_completed(futures):
+                sym, analysis = await coro
+                if analysis is not None:
+                    ai_analysis_map[sym] = analysis
+                ai_done += 1
+                if ai_done % 5 == 0 or ai_done == len(ai_symbols):
+                    yield _sse_event(
+                        "progress",
+                        _json.dumps(
+                            {
+                                "stage": "ai",
+                                "message": f"AI 分析进度: {ai_done}/{len(ai_symbols)}",
+                                "current": ai_done,
+                                "total": len(ai_symbols),
+                            }
+                        ),
+                    )
+
+            yield _sse_event(
+                "progress", _json.dumps({"stage": "select", "message": "综合评分选股..."})
+            )
+
+            selector = StockSelector(
+                stock_pool=filtered_stock_pool,
+                mom_windows=cfg.signal.mom_windows,
+                mom_weights=cfg.signal.mom_weights,
+                vol_lookback=cfg.risk.vol_lookback,
+            )
+            result = selector.select(
+                prices,
+                regime_state,
+                use_fundamental=True,
+                fundamentals=fundamentals_all,
+                ai_analysis=ai_analysis_map,
+            )
+
+            executor = TradeExecutor()
+            trade_plans: list[TradePlan] = []
+            if result.is_active and result.candidates:
+                trade_plans = executor.generate_stock_plans(prices, result.candidates)
+
+            for plan in trade_plans:
+                yield _sse_event("pick", _json.dumps(plan.to_dict()))
+
+            message = f"{result.message}（筛选范围: {PICK_SIZE_LABEL[pick_size]}）"
+            yield _sse_event(
+                "done",
+                _json.dumps(
+                    {
+                        "total": len(trade_plans),
+                        "ai_analyzed_count": len(ai_analysis_map),
+                        "message": message,
+                    }
+                ),
+            )
+
+        except ValueError as e:
+            yield _sse_event("error", _json.dumps({"detail": str(e)}))
+        except Exception as e:
+            logger.exception("picks/stream error")
+            yield _sse_event("error", _json.dumps({"detail": str(e)}))
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.get("/api/stocks/trend-scan")
@@ -1461,7 +1654,7 @@ async def portfolio_analytics(days: int = Query(default=90, ge=7, le=365)):
     benchmark_nav_series: pd.Series | None = None
     benchmark_returns_series: pd.Series | None = None
 
-    cfg = load_config()
+    cfg = load_config(str(DEFAULT_CONFIG))
     benchmark_symbol = cfg.universe.market_benchmark
 
     if positions:

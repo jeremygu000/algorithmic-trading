@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TypedDict
 import json
 
@@ -10,6 +11,11 @@ import yfinance as yf
 from etf_trend.data.cache import cache_path
 
 logger = logging.getLogger(__name__)
+
+# Yahoo Finance 并行获取的最大线程数
+# yfinance 内部对同一 IP 有频率限制，过高并发反而触发 429。
+# 8 线程是经验值：比顺序快 5-6 倍，又不容易被限流。
+_YAHOO_MAX_WORKERS = 8
 
 
 class FundamentalData(TypedDict):
@@ -23,13 +29,67 @@ class FundamentalData(TypedDict):
     sector: str | None
 
 
+def _fetch_single_fundamental(
+    sym: str,
+    cache_enabled: bool,
+    cache_dir: str,
+) -> tuple[str, FundamentalData]:
+    """获取单个股票的基本面数据（线程安全）。"""
+    try:
+        ticker = yf.Ticker(sym)
+        info = ticker.info
+
+        fund_data: FundamentalData = {
+            "symbol": sym,
+            "peRatio": info.get("trailingPE"),
+            "pegRatio": info.get("pegRatio"),
+            "pbRatio": info.get("priceToBook"),
+            "trailingEPS": info.get("trailingEps"),
+            "returnOnEquity": info.get("returnOnEquity"),
+            "grossMargins": info.get("grossMargins"),
+            "debtToEquity": info.get("debtToEquity"),
+            "earningsGrowth": info.get("earningsGrowth"),
+            "marketCap": info.get("marketCap"),
+            "averageVolume": info.get("averageVolume"),
+            "sector": info.get("sector"),
+        }
+
+        # 写入缓存
+        if cache_enabled:
+            key = f"yahoo_fund_{sym}_{pd.Timestamp.now().strftime('%Y%m%d')}"
+            path = cache_path(cache_dir, key)
+            json_path = path.with_suffix(".json")
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(fund_data, f)
+
+        return sym, fund_data
+
+    except Exception as e:
+        logger.warning(f"无法获取 {sym} 基本面数据: {e}")
+        return sym, {
+            "symbol": sym,
+            "peRatio": None,
+            "pegRatio": None,
+            "pbRatio": None,
+            "trailingEPS": None,
+            "returnOnEquity": None,
+            "grossMargins": None,
+            "debtToEquity": None,
+            "earningsGrowth": None,
+            "marketCap": None,
+            "averageVolume": None,
+            "sector": None,
+        }
+
+
 def load_yahoo_fundamentals(
     symbols: list[str],
     cache_enabled: bool = True,
     cache_dir: str = "cache",
 ) -> dict[str, FundamentalData]:
     """
-    加载基本面数据 (使用 Yahoo Finance)
+    加载基本面数据 (使用 Yahoo Finance, 并行获取)
 
     Args:
         symbols: 股票代码列表
@@ -39,30 +99,19 @@ def load_yahoo_fundamentals(
     Returns:
         dict: {symbol: FundamentalData}
     """
-    result = {}
-    missing = []
+    result: dict[str, FundamentalData] = {}
+    missing: list[str] = []
 
     # 尝试从缓存加载
     if cache_enabled:
         for sym in symbols:
-            # 基本面数据变化慢，可以用当周或当月作为 Key，这里简化为每天 (实际 Cache 使用 hash 或日期)
-            # 由于 yfinance 的 info 是实时请求，我们假定一天缓存一次足够
             key = f"yahoo_fund_{sym}_{pd.Timestamp.now().strftime('%Y%m%d')}"
             path = cache_path(cache_dir, key)
-
-            # 使用 JSON 存储基本面数据 (不同于 Price 的 Parquet)
-            # 这里为了简单，我们还是用简单的文件读写，或者复用 Parquet 如果想起存 DF
-            # 考虑到数据量极小，直接用 json 文件更方便
-            # 但为了统一基础设施，我们这里稍作变通：
-            # 若 utils 只有 Parquet 支持，就用 Parquet。
-            # 查阅代码发现 cache_path 只是返回路径。我们自己处理 IO。
-
             json_path = path.with_suffix(".json")
             if json_path.exists():
                 try:
                     with open(json_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                        # 旧缓存可能缺少新增字段，触发回源刷新
                         if "averageVolume" not in data:
                             missing.append(sym)
                         else:
@@ -72,64 +121,21 @@ def load_yahoo_fundamentals(
             else:
                 missing.append(sym)
     else:
-        missing = symbols
+        missing = list(symbols)
 
     if not missing:
         return result
 
-    # 获取缺失数据
-    print(f"  正在从 Yahoo Finance 获取 {len(missing)} 个资产的基本面数据...")
+    # 并行获取缺失数据
+    print(f"  正在从 Yahoo Finance 并行获取 {len(missing)} 个资产的基本面数据...")
 
-    for sym in missing:
-        try:
-            ticker = yf.Ticker(sym)
-            info = ticker.info
-
-            fund_data: FundamentalData = {
-                "symbol": sym,
-                "peRatio": info.get("trailingPE"),
-                "pegRatio": info.get("pegRatio"),
-                "pbRatio": info.get("priceToBook"),
-                "trailingEPS": info.get("trailingEps"),
-                "returnOnEquity": info.get("returnOnEquity"),
-                "grossMargins": info.get("grossMargins"),
-                "debtToEquity": info.get("debtToEquity"),
-                "earningsGrowth": info.get("earningsGrowth"),
-                "marketCap": info.get("marketCap"),
-                "averageVolume": info.get("averageVolume"),
-                "sector": info.get("sector"),
-            }
-
+    with ThreadPoolExecutor(max_workers=min(_YAHOO_MAX_WORKERS, len(missing))) as pool:
+        futures = {
+            pool.submit(_fetch_single_fundamental, sym, cache_enabled, cache_dir): sym
+            for sym in missing
+        }
+        for future in as_completed(futures):
+            sym, fund_data = future.result()
             result[sym] = fund_data
-
-            # 写入缓存
-            if cache_enabled:
-                key = f"yahoo_fund_{sym}_{pd.Timestamp.now().strftime('%Y%m%d')}"
-                path = cache_path(cache_dir, key)
-                json_path = path.with_suffix(".json")
-
-                # 确保存储目录存在
-                json_path.parent.mkdir(parents=True, exist_ok=True)
-
-                with open(json_path, "w", encoding="utf-8") as f:
-                    json.dump(fund_data, f)
-
-        except Exception as e:
-            logger.warning(f"无法获取 {sym} 基本面数据: {e}")
-            # 填充控制避免报错
-            result[sym] = {
-                "symbol": sym,
-                "peRatio": None,
-                "pegRatio": None,
-                "pbRatio": None,
-                "trailingEPS": None,
-                "returnOnEquity": None,
-                "grossMargins": None,
-                "debtToEquity": None,
-                "earningsGrowth": None,
-                "marketCap": None,
-                "averageVolume": None,
-                "sector": None,
-            }
 
     return result

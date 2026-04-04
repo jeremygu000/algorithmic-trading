@@ -30,7 +30,7 @@ def test_stock_universe_builder_dynamic_filters(tmp_path):
             "universe": {
                 "stock_universe_mode": "dynamic",
                 "dynamic_stock_symbols": ["LQ", "ILLQ", "LOWP", "SHORT"],
-                "dynamic_stock_symbols_file": str(tmp_path / "watchlist.txt"),
+                "russell_3000_symbols_file": str(tmp_path / "r3000.txt"),
                 "dynamic_min_history_days": 5,
                 "dynamic_min_price": 10.0,
                 "dynamic_min_avg_dollar_volume": 1000.0,
@@ -68,7 +68,7 @@ def test_stock_universe_builder_dynamic_max_symbols(tmp_path):
             "universe": {
                 "stock_universe_mode": "dynamic",
                 "dynamic_stock_symbols": ["S1", "S2", "S3"],
-                "dynamic_stock_symbols_file": str(tmp_path / "watchlist.txt"),
+                "russell_3000_symbols_file": str(tmp_path / "r3000.txt"),
                 "dynamic_min_history_days": 3,
                 "dynamic_min_price": 1.0,
                 "dynamic_min_avg_dollar_volume": 0.0,

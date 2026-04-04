@@ -147,16 +147,10 @@ def run_refresh(config_path: str, candidate_limit: int) -> None:
     if cfg.universe.dynamic_max_symbols > 0:
         selected_symbols = selected_symbols[: cfg.universe.dynamic_max_symbols]
 
-    # Keep manually maintained symbols at head to avoid accidental loss.
-    existing_dynamic = read_symbol_file(cfg.universe.dynamic_stock_symbols_file)
-    merged = list(dict.fromkeys(existing_dynamic + selected_symbols))
-    write_symbol_file(cfg.universe.dynamic_stock_symbols_file, merged)
     print(
-        f"dynamic_stock_symbols_file 更新完成: {len(merged)} "
-        f"(手工列表 {len(existing_dynamic)} + 自动候选 {len(selected_symbols)})"
+        f"[{datetime.now().isoformat(timespec='seconds')}] daily refresh 完成 "
+        f"(auto-ranked {len(selected_symbols)} symbols)"
     )
-
-    print(f"[{datetime.now().isoformat(timespec='seconds')}] daily refresh 完成")
     print("=" * 72)
 
 

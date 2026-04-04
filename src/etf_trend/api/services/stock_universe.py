@@ -28,18 +28,17 @@ class StockUniverseBuilder:
 
     def base_candidates(self) -> list[str]:
         if self.cfg.universe.stock_universe_mode == "dynamic":
-            file_symbols = read_symbol_file(self.cfg.universe.dynamic_stock_symbols_file)
+            r3000 = read_symbol_file(self.cfg.universe.russell_3000_symbols_file)
             config_symbols = (
                 self.cfg.universe.dynamic_stock_symbols or self.cfg.universe.stock_symbols
             )
-            symbols = file_symbols + config_symbols
+            symbols = r3000 + config_symbols
         else:
             symbols = self.cfg.universe.stock_symbols
 
         if not symbols:
             symbols = StockSelector.DEFAULT_STOCK_POOL
 
-        # 去重并保持顺序
         return list(dict.fromkeys(symbols))
 
     def build(

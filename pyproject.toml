@@ -28,6 +28,9 @@ dependencies = [
     "statsmodels>=0.14.6",
     "uvicorn>=0.40.0",
     "yfinance>=1.0",
+    "sqlalchemy>=2.0",
+    "aiosqlite>=0.21.0",
+    "greenlet>=3.3.2",
 ]
 
 [project.scripts]

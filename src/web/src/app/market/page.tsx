@@ -9,6 +9,8 @@ import CardContent from "@mui/material/CardContent";
 import Button from "@mui/material/Button";
 import LinearProgress from "@mui/material/LinearProgress";
 import CircularProgress from "@mui/material/CircularProgress";
+import Chip from "@mui/material/Chip";
+import Grid from "@mui/material/Grid";
 import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 
@@ -23,43 +25,59 @@ interface MarketStatus {
   };
 }
 
+const signalIcons: Record<string, string> = {
+  vix: "📉",
+  momentum: "🚀",
+  trend: "📈",
+  volume: "📊",
+  breadth: "🌐",
+  yield: "💹",
+  default: "⚙️",
+};
+
+function getSignalIcon(key: string): string {
+  const lower = key.toLowerCase();
+  for (const k of Object.keys(signalIcons)) {
+    if (lower.includes(k)) return signalIcons[k];
+  }
+  return signalIcons.default;
+}
+
 export default function MarketPage() {
   const [data, setData] = useState<MarketStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/market`)
+    const controller = new AbortController();
+    fetch(`${API_BASE}/api/market`, { signal: controller.signal })
       .then((res) => res.json())
       .then(setData)
-      .catch((e) => setError(e.message))
+      .catch((e) => {
+        if (e.name !== "AbortError") setError(e.message);
+      })
       .finally(() => setLoading(false));
+    return () => controller.abort();
   }, []);
 
   const regimeConfig: Record<
     string,
-    { color: string; icon: string; label: string; borderColor: string; bgColor: string }
+    { color: string; label: string; accentColor: string }
   > = {
     RISK_ON: {
-      color: "success.main",
-      icon: "🟢",
+      color: "#36bb80",
       label: "风险偏好 (Risk On)",
-      borderColor: "success.main",
-      bgColor: "rgba(46, 125, 50, 0.08)",
+      accentColor: "#36bb80",
     },
     NEUTRAL: {
-      color: "primary.main",
-      icon: "🔵",
+      color: "#3b89ff",
       label: "中性观望 (Neutral)",
-      borderColor: "primary.main",
-      bgColor: "rgba(25, 118, 210, 0.08)",
+      accentColor: "#3b89ff",
     },
     RISK_OFF: {
-      color: "error.main",
-      icon: "🔴",
+      color: "#ff7134",
       label: "风险厌恶 (Risk Off)",
-      borderColor: "error.main",
-      bgColor: "rgba(211, 47, 47, 0.08)",
+      accentColor: "#ff7134",
     },
   };
 
@@ -91,7 +109,7 @@ export default function MarketPage() {
       <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
         <Sidebar />
         <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
-          <Box sx={{ maxWidth: 900, mx: "auto", px: 4, py: 5 }}>
+          <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5 }}>
             <Card
               sx={{
                 border: "1px solid",
@@ -137,19 +155,47 @@ export default function MarketPage() {
         />
         <Box
           sx={{
-            maxWidth: 900,
+            maxWidth: 1100,
             mx: "auto",
             px: 4,
             py: 5,
             display: "flex",
             flexDirection: "column",
-            gap: 4,
+            gap: 6,
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-            <Typography variant="h4" fontWeight={700}>
-              🌍 市场状态
-            </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
+            <Box>
+              <Chip
+                label="📡 实时监控"
+                size="small"
+                sx={{
+                  mb: 2,
+                  bgcolor: "background.paper",
+                  color: "primary.main",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  fontWeight: 500,
+                  fontSize: "0.8rem",
+                }}
+              />
+              <Typography variant="h4" fontWeight={700} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box component="span" sx={{ color: "text.primary" }}>
+                  市场
+                </Box>
+                <Box
+                  component="span"
+                  sx={{
+                    background: "linear-gradient(90deg, #3b89ff 0%, #36bb80 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
+                  状态
+                </Box>
+              </Typography>
+            </Box>
             <Button
               component={Link}
               href="/trend-scan"
@@ -166,12 +212,19 @@ export default function MarketPage() {
             sx={{
               borderRadius: 3,
               border: "1px solid",
-              borderColor: regime.borderColor,
-              bgcolor: regime.bgColor,
-              backdropFilter: "blur(8px)",
+              borderColor: "divider",
+              borderLeft: `4px solid ${regime.accentColor}`,
+              bgcolor: "background.paper",
+              position: "relative",
+              overflow: "hidden",
+              transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s",
+              "&:hover": {
+                transform: "translateY(-2px)",
+                boxShadow: 4,
+              },
             }}
           >
-            <CardContent sx={{ p: 4 }}>
+            <CardContent sx={{ p: 4, position: "relative", zIndex: 1 }}>
               <Box
                 sx={{
                   display: "flex",
@@ -187,7 +240,7 @@ export default function MarketPage() {
                     variant="overline"
                     color="text.secondary"
                     fontWeight={600}
-                    letterSpacing={2}
+                    letterSpacing="0.12em"
                     display="block"
                     mb={0.5}
                   >
@@ -206,7 +259,7 @@ export default function MarketPage() {
                     variant="overline"
                     color="text.secondary"
                     fontWeight={600}
-                    letterSpacing={2}
+                    letterSpacing="0.12em"
                     display="block"
                     mb={0.5}
                   >
@@ -233,10 +286,10 @@ export default function MarketPage() {
                   sx={{
                     height: 10,
                     borderRadius: 5,
-                    bgcolor: "rgba(0,0,0,0.12)",
+                    bgcolor: "action.hover",
                     "& .MuiLinearProgress-bar": {
                       borderRadius: 5,
-                      background: "linear-gradient(90deg, #0288d1, #1565c0)",
+                      bgcolor: regime.accentColor,
                     },
                   }}
                 />
@@ -287,75 +340,104 @@ export default function MarketPage() {
 
           {data?.signals && (
             <Box>
-              <Typography
-                variant="h6"
-                fontWeight={700}
-                color="text.primary"
-                sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}
-              >
-                ⚙️ 核心指标详情
-              </Typography>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                  gap: 2,
-                }}
-              >
-                {Object.entries(data.signals).map(([key, value]) => (
-                  <Card
-                    key={key}
-                    sx={{
-                      borderRadius: 2,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      bgcolor: "background.paper",
-                      transition: "border-color 0.2s",
-                      "&:hover": { borderColor: "primary.light" },
-                    }}
-                  >
-                    <CardContent
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        py: 2,
-                        "&:last-child": { pb: 2 },
-                      }}
-                    >
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        fontWeight={500}
-                        sx={{ textTransform: "uppercase", letterSpacing: 1 }}
-                      >
-                        {key}
-                      </Typography>
-                      <Typography
-                        variant="body1"
-                        fontFamily="monospace"
-                        fontWeight={600}
+              <Box sx={{ mb: 3 }}>
+                <Typography
+                  variant="overline"
+                  sx={{
+                    color: "text.disabled",
+                    letterSpacing: "0.12em",
+                    fontWeight: 600,
+                    display: "block",
+                    mb: 0.5,
+                  }}
+                >
+                  核心指标
+                </Typography>
+                <Typography variant="h5" fontWeight={700} color="text.primary">
+                  详细信号
+                </Typography>
+              </Box>
+              <Grid container spacing={3}>
+                {Object.entries(data.signals).map(([key, value]) => {
+                  const icon = getSignalIcon(key);
+                  return (
+                    <Grid size={{ xs: 12, sm: 6 }} key={key}>
+                      <Card
                         sx={{
-                          color:
-                            typeof value === "boolean"
-                              ? value
-                                ? "success.main"
-                                : "error.main"
-                              : "text.primary",
+                          borderRadius: 3,
+                          border: "1px solid",
+                          borderColor: "divider",
+                          bgcolor: "background.paper",
+                          position: "relative",
+                          overflow: "hidden",
+                          transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s",
+                          "&:hover": {
+                            borderColor: "primary.main",
+                            transform: "translateY(-2px)",
+                            boxShadow: 4,
+                          },
                         }}
                       >
-                        {typeof value === "boolean"
-                          ? value
-                            ? "TRUE"
-                            : "FALSE"
-                          : typeof value === "number"
-                          ? value.toFixed(2)
-                          : value}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                ))}
-              </Box>
+                        <Box
+                          sx={{
+                            position: "absolute",
+                            top: 8,
+                            right: 12,
+                            fontSize: "6rem",
+                            lineHeight: 1,
+                            opacity: 0.07,
+                            pointerEvents: "none",
+                          }}
+                        >
+                          {icon}
+                        </Box>
+                        <CardContent
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            py: 2.5,
+                            px: 3,
+                            position: "relative",
+                            zIndex: 1,
+                            "&:last-child": { pb: 2.5 },
+                          }}
+                        >
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            fontWeight={500}
+                            sx={{ textTransform: "uppercase", letterSpacing: 1 }}
+                          >
+                            {key}
+                          </Typography>
+                          <Typography
+                            variant="body1"
+                            fontFamily="monospace"
+                            fontWeight={600}
+                            sx={{
+                              color:
+                                typeof value === "boolean"
+                                  ? value
+                                    ? "success.main"
+                                    : "error.main"
+                                  : "text.primary",
+                            }}
+                          >
+                            {typeof value === "boolean"
+                              ? value
+                                ? "TRUE"
+                                : "FALSE"
+                              : typeof value === "number"
+                              ? value.toFixed(2)
+                              : value}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  );
+                })}
+              </Grid>
             </Box>
           )}
         </Box>
