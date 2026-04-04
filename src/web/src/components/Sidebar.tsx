@@ -19,6 +19,7 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import StarIcon from "@mui/icons-material/Star";
 import CandlestickChartIcon from "@mui/icons-material/CandlestickChart";
 import AutoGraphIcon from "@mui/icons-material/AutoGraph";
+import TimelineIcon from "@mui/icons-material/Timeline";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import PieChartIcon from "@mui/icons-material/PieChart";
 import SearchIcon from "@mui/icons-material/Search";
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { id: "/trend-scan", label: "趋势扫描", Icon: TrendingUpIcon },
   { id: "/picks", label: "个股推荐", Icon: StarIcon },
   { id: "/beauty-shoulder", label: "美人肩", Icon: AutoGraphIcon },
+  { id: "/backtest", label: "策略回测", Icon: TimelineIcon },
   { id: "/trading", label: "交易中心", Icon: AccountBalanceWalletIcon },
   { id: "/portfolio", label: "投资组合", Icon: PieChartIcon },
   { id: "/stock/AAPL", label: "股票分析", Icon: CandlestickChartIcon },

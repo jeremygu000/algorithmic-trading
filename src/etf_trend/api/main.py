@@ -65,6 +65,7 @@ from etf_trend.api.services import (
 )
 from etf_trend.backtest.beauty_shoulder_backtest import BacktestSummary
 from etf_trend.backtest.metrics import extended_stats
+from etf_trend.backtest.simulator import StrategySimulator
 
 # 获取配置
 from pathlib import Path
@@ -214,6 +215,7 @@ async def root():
             "/api/beauty-shoulder": "扫描美人肩形态 (加速→回踩→入场信号)",
             "/api/early-movers": "扫描早期强势股 (20日窗口涨幅 20%-30%)",
             "/api/beauty-shoulder/backtest": "美人肩策略历史回测",
+            "/api/etf-trend/backtest": "ETF 趋势策略回测 (Regime→选股→配置→再平衡)",
         },
     }
 
@@ -1526,6 +1528,181 @@ async def portfolio_analytics(days: int = Query(default=90, ge=7, le=365)):
         "equity_curve": equity_curve,
         "benchmark_metrics": benchmark_metrics,
     }
+
+
+# =============================================================================
+# ETF 趋势策略回测
+# =============================================================================
+
+
+@app.get("/api/etf-trend/backtest")
+async def etf_trend_backtest(
+    start: str = Query(default="2024-06-01", description="Backtest start date (YYYY-MM-DD)"),
+    end: str = Query(default="2026-03-01", description="Backtest end date (YYYY-MM-DD)"),
+    initial_capital: float = Query(default=100_000.0, description="Initial capital ($)"),
+    cost_bps: float = Query(default=10.0, description="Trading cost (basis points)"),
+    rebalance_freq: str = Query(
+        default="W-FRI", description="Rebalance frequency (W-FRI, M, etc.)"
+    ),
+):
+    """ETF 趋势策略全周期回测 (Regime → 选股 → 配置 → 再平衡)"""
+    try:
+        cfg = load_config(str(DEFAULT_CONFIG))
+        env = EnvSettings()
+
+        # ── 加载价格数据（含基准 SPY） ──
+        all_symbols = list(
+            set(
+                cfg.universe.equity_symbols
+                + cfg.universe.defensive_symbols
+                + [cfg.universe.market_benchmark]
+            )
+        )
+        prices = load_prices_with_fallback(
+            all_symbols,
+            start,
+            end,
+            env.tiingo_api_key,
+            cache_enabled=cfg.cache.enabled,
+            cache_dir=cfg.cache.dir,
+        )
+        prices = prices.ffill().dropna(how="all")
+
+        stock_pool = cfg.universe.equity_symbols + cfg.universe.defensive_symbols
+
+        # ── 运行模拟器 ──
+        sim = StrategySimulator(
+            prices=prices,
+            stock_pool=stock_pool,
+            initial_capital=initial_capital,
+            rebalance_freq=rebalance_freq,
+            cost_bps=cost_bps,
+        )
+        result = sim.run(start, end)
+
+        # ── 权益曲线 + 基准 ──
+        benchmark_symbol = cfg.universe.market_benchmark
+        bench_col = benchmark_symbol if benchmark_symbol in prices.columns else None
+        bench_nav = None
+        if bench_col is not None:
+            bench_prices = (
+                prices[bench_col].loc[result.nav.index[0] : result.nav.index[-1]].dropna()
+            )
+            if len(bench_prices) > 1:
+                bench_nav = bench_prices / bench_prices.iloc[0] * initial_capital
+
+        equity_curve = []
+        for idx, row in result.nav.iterrows():
+            bench_val = None
+            if bench_nav is not None and idx in bench_nav.index:
+                bench_val = round(float(bench_nav.loc[idx]), 2)
+            equity_curve.append(
+                {
+                    "date": str(idx.date()) if hasattr(idx, "date") else str(idx),
+                    "nav": round(float(row["nav"]), 2),
+                    "drawdown": round(float(row["drawdown"]) * 100, 2),
+                    "benchmark_nav": bench_val,
+                }
+            )
+
+        # ── 扩展绩效指标 ──
+        r = result.nav["pct_change"]
+        bt_df = pd.DataFrame(
+            {
+                "port_ret": r,
+                "net_ret": r,
+                "nav": result.nav["nav"],
+                "drawdown": result.nav["drawdown"],
+                "turnover": 0.0,
+                "cost": 0.0,
+            }
+        )
+
+        bench_returns = None
+        if bench_col is not None:
+            bench_series = prices[bench_col].loc[result.nav.index[0] : result.nav.index[-1]]
+            bench_returns = bench_series.pct_change().fillna(0.0)
+
+        ext = extended_stats(bt_df, benchmark_returns=bench_returns)
+        ext_dict = {}
+        for k, v in ext.items():
+            if isinstance(v, (float, np.floating)):
+                ext_dict[k] = None if (np.isnan(v) or np.isinf(v)) else round(float(v), 6)
+            else:
+                ext_dict[k] = int(v) if isinstance(v, (int, np.integer)) else v
+
+        # ── 月度汇总 ──
+        nav_series = result.nav["nav"]
+        monthly_nav = nav_series.resample("ME").last().dropna()
+        monthly_ret = monthly_nav.pct_change().dropna()
+
+        monthly_summary = []
+        for period_end, ret in monthly_ret.items():
+            period_label = period_end.strftime("%Y-%m")
+            month_start = period_end.replace(day=1)
+            month_daily = r.loc[str(month_start) : str(period_end)]
+            wins = month_daily[month_daily > 0]
+            win_rate = (
+                len(wins) / max(len(month_daily[month_daily != 0]), 1)
+                if len(month_daily) > 0
+                else 0
+            )
+
+            monthly_summary.append(
+                {
+                    "period": period_label,
+                    "return_pct": round(float(ret) * 100, 2),
+                    "win_rate": round(float(win_rate) * 100, 1),
+                    "trading_days": len(month_daily),
+                }
+            )
+
+        # ── 交易明细 ──
+        trades_list = []
+        if not result.trades.empty:
+            for _, t in result.trades.iterrows():
+                trades_list.append(
+                    {
+                        "date": (
+                            str(t["date"].date()) if hasattr(t["date"], "date") else str(t["date"])
+                        ),
+                        "symbol": t["symbol"],
+                        "action": t["action"],
+                        "shares": int(t["shares"]),
+                        "price": round(float(t["price"]), 2),
+                        "cost": round(float(t["cost"]), 2),
+                    }
+                )
+
+        return {
+            "start": start,
+            "end": end,
+            "initial_capital": initial_capital,
+            "cost_bps": cost_bps,
+            "rebalance_freq": rebalance_freq,
+            "final_nav": (
+                round(float(nav_series.iloc[-1]), 2) if len(nav_series) > 0 else initial_capital
+            ),
+            "total_return_pct": (
+                round(float((nav_series.iloc[-1] / initial_capital - 1) * 100), 2)
+                if len(nav_series) > 0
+                else 0.0
+            ),
+            "total_trades": len(trades_list),
+            "basic_stats": {
+                k: (round(float(v), 4) if isinstance(v, float) else v)
+                for k, v in result.stats.items()
+            },
+            "extended_metrics": ext_dict,
+            "equity_curve": equity_curve,
+            "monthly_summary": monthly_summary,
+            "trades": trades_list,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("ETF trend backtest failed")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # =============================================================================
