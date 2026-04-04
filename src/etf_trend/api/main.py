@@ -48,7 +48,7 @@ from etf_trend.brokers.alpaca_client import AlpacaBroker, OrderResult
 from etf_trend.api.ws_manager import ws_manager, get_trade_bridge
 from etf_trend.regime.engine import RegimeEngine
 from etf_trend.selector.satellite import StockSelector
-from etf_trend.execution.executor import TradeExecutor, calculate_atr
+from etf_trend.execution.executor import TradePlan, TradeExecutor, calculate_atr
 from etf_trend.features.indicators import calculate_rsi, calculate_macd, calculate_bollinger_bands
 from etf_trend.data.providers.yahoo_fundamentals import load_yahoo_fundamentals
 from etf_trend.features.pattern_match import find_similar_patterns
@@ -1176,47 +1176,6 @@ async def trade_execute(req: TradeRequest):
     return _order_to_dict(result)
 
 
-@app.post("/api/trade/execute-plan")
-async def trade_execute_plan(req: ExecutePlanRequest):
-    broker = _get_broker()
-
-    acct = broker.get_account()
-    portfolio_value = acct.portfolio_value
-
-    price_data = load_local_daily_ohlcv(
-        symbols=[req.symbol],
-        start=str((date.today() - timedelta(days=60)).isoformat()),
-        end=str(date.today().isoformat()),
-    )
-    if req.symbol not in price_data:
-        raise HTTPException(status_code=404, detail=f"No price data for {req.symbol}")
-
-    ohlcv_df = price_data[req.symbol]
-    close_series = ohlcv_df["Close"]
-    prices_df = pd.DataFrame({req.symbol: close_series})
-
-    executor = TradeExecutor()
-    plans = executor.generate_stock_plans(
-        prices=prices_df,
-        stock_candidates=[_SimpleCandidate(req.symbol)],
-    )
-
-    if not plans:
-        raise HTTPException(
-            status_code=404, detail=f"Could not generate trade plan for {req.symbol}"
-        )
-
-    plan = plans[0]
-    result = broker.execute_trade_plan(plan, portfolio_value, req.order_type)
-
-    if result.error:
-        raise HTTPException(status_code=400, detail=result.error)
-    return {
-        "plan": plan.to_dict(),
-        "order": _order_to_dict(result),
-    }
-
-
 class _SimpleCandidate:
     def __init__(self, symbol: str):
         self.symbol = symbol
@@ -1225,6 +1184,52 @@ class _SimpleCandidate:
         self.hold_days = 20
         self.exit_price = None
         self.trailing_stop_pct = 0
+
+
+def _generate_plan(symbol: str) -> TradePlan:
+    """Generate a TradePlan for the given symbol (no execution)."""
+    price_data = load_local_daily_ohlcv(
+        symbols=[symbol],
+        start=str((date.today() - timedelta(days=60)).isoformat()),
+        end=str(date.today().isoformat()),
+    )
+    if symbol not in price_data:
+        raise HTTPException(status_code=404, detail=f"No price data for {symbol}")
+
+    ohlcv_df = price_data[symbol]
+    close_series = ohlcv_df["Close"]
+    prices_df = pd.DataFrame({symbol: close_series})
+
+    executor = TradeExecutor()
+    plans = executor.generate_stock_plans(
+        prices=prices_df,
+        stock_candidates=[_SimpleCandidate(symbol)],
+    )
+    if not plans:
+        raise HTTPException(status_code=404, detail=f"Could not generate trade plan for {symbol}")
+    return plans[0]
+
+
+@app.get("/api/trade/plan/{symbol}")
+async def trade_plan_preview(symbol: str):
+    """Preview a TradePlan without executing — for modal display."""
+    plan = _generate_plan(symbol)
+    return plan.to_dict()
+
+
+@app.post("/api/trade/execute-plan")
+async def trade_execute_plan(req: ExecutePlanRequest):
+    broker = _get_broker()
+    acct = broker.get_account()
+    plan = _generate_plan(req.symbol)
+    result = broker.execute_trade_plan(plan, acct.portfolio_value, req.order_type)
+
+    if result.error:
+        raise HTTPException(status_code=400, detail=result.error)
+    return {
+        "plan": plan.to_dict(),
+        "order": _order_to_dict(result),
+    }
 
 
 @app.delete("/api/trade/orders/{order_id}")

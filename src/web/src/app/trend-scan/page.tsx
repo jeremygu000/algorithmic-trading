@@ -15,6 +15,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Button from "@mui/material/Button";
 import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
+import TradePlanModal from "@/components/TradePlanModal";
 
 const API_BASE = "http://localhost:8300";
 
@@ -47,6 +48,9 @@ export default function TrendScanPage() {
   const [data, setData] = useState<TrendScanData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [planSymbol, setPlanSymbol] = useState<string | null>(null);
+  const [planStockName, setPlanStockName] = useState("");
+  const [planPrice, setPlanPrice] = useState(0);
 
   const handleTrendChange = (nextTrend: TrendDirection) => {
     if (nextTrend === trend) return;
@@ -329,36 +333,58 @@ export default function TrendScanPage() {
                           </Box>
 
                           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 1 }}>
-                            {stock.daily_changes_pct.map((dayPct, i) => (
-                              <Box
-                                key={`${stock.symbol}-${i}`}
-                                sx={{
-                                  bgcolor: "action.hover",
-                                  border: "1px solid",
-                                  borderColor: "divider",
-                                  borderRadius: 1.5,
-                                  p: 1,
-                                  textAlign: "center",
-                                }}
-                              >
-                                <Typography variant="caption" sx={{ color: "text.disabled", display: "block", fontSize: "0.65rem", mb: 0.25 }}>
-                                  D-{stock.daily_changes_pct.length - i}
-                                </Typography>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    fontFamily: "monospace",
-                                    fontSize: "0.7rem",
-                                    fontWeight: 600,
-                                    color: dayPct >= 0 ? "#36bb80" : "#ff7134",
-                                  }}
-                                >
-                                  {dayPct > 0 ? "+" : ""}
-                                  {dayPct.toFixed(2)}%
-                                </Typography>
-                              </Box>
-                            ))}
-                          </Box>
+                             {stock.daily_changes_pct.map((dayPct, i) => (
+                               <Box
+                                 key={`${stock.symbol}-${i}`}
+                                 sx={{
+                                   bgcolor: "action.hover",
+                                   border: "1px solid",
+                                   borderColor: "divider",
+                                   borderRadius: 1.5,
+                                   p: 1,
+                                   textAlign: "center",
+                                 }}
+                               >
+                                 <Typography variant="caption" sx={{ color: "text.disabled", display: "block", fontSize: "0.65rem", mb: 0.25 }}>
+                                   D-{stock.daily_changes_pct.length - i}
+                                 </Typography>
+                                 <Typography
+                                   variant="caption"
+                                   sx={{
+                                     fontFamily: "monospace",
+                                     fontSize: "0.7rem",
+                                     fontWeight: 600,
+                                     color: dayPct >= 0 ? "#36bb80" : "#ff7134",
+                                   }}
+                                 >
+                                   {dayPct > 0 ? "+" : ""}
+                                   {dayPct.toFixed(2)}%
+                                 </Typography>
+                               </Box>
+                             ))}
+                           </Box>
+
+                           <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end" }}>
+                             <Button
+                               variant="outlined"
+                               size="small"
+                               onClick={() => {
+                                 setPlanSymbol(stock.symbol);
+                                 setPlanStockName(stock.name);
+                                 setPlanPrice(stock.latest_price);
+                               }}
+                               sx={{
+                                 borderColor: trendColorHex,
+                                 color: trendColorHex,
+                                 "&:hover": {
+                                   borderColor: trendColorHex,
+                                   bgcolor: trend === "up" ? "rgba(54,187,128,0.08)" : "rgba(255,113,52,0.08)",
+                                 },
+                               }}
+                             >
+                               一键交易
+                             </Button>
+                           </Box>
                         </CardContent>
                       </Card>
                     );
@@ -388,6 +414,13 @@ export default function TrendScanPage() {
           )}
         </Box>
       </Box>
+      <TradePlanModal
+        open={planSymbol !== null}
+        onClose={() => setPlanSymbol(null)}
+        symbol={planSymbol ?? ""}
+        stockName={planStockName}
+        latestPrice={planPrice}
+      />
     </Box>
   );
 }
