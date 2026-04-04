@@ -63,6 +63,7 @@ from etf_trend.api.services import (
     resolve_symbol_file,
 )
 from etf_trend.backtest.beauty_shoulder_backtest import BacktestSummary
+from etf_trend.backtest.metrics import extended_stats
 
 # 获取配置
 from pathlib import Path
@@ -866,6 +867,37 @@ async def scan_early_movers(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _compute_backtest_extended_metrics(trades: list) -> dict | None:
+    if not trades:
+        return None
+    import numpy as np
+    import pandas as pd
+
+    rets_2d = pd.Series([t.return_2d / 100.0 for t in trades])
+    nav_2d = (1 + rets_2d).cumprod()
+    dd_2d = nav_2d / nav_2d.cummax() - 1
+
+    bt_df = pd.DataFrame(
+        {
+            "port_ret": rets_2d,
+            "net_ret": rets_2d,
+            "nav": nav_2d,
+            "drawdown": dd_2d,
+            "turnover": 0.0,
+            "cost": 0.0,
+        }
+    )
+    stats = extended_stats(bt_df)
+
+    result = {}
+    for k, v in stats.items():
+        if isinstance(v, (float, np.floating)):
+            result[k] = None if np.isnan(v) or np.isinf(v) else round(float(v), 6)
+        else:
+            result[k] = int(v) if isinstance(v, (int, np.integer)) else v
+    return result
+
+
 @app.get("/api/beauty-shoulder/backtest")
 async def beauty_shoulder_backtest(
     start: str = Query(default="2025-10-01", description="Backtest start date (YYYY-MM-DD)"),
@@ -898,6 +930,7 @@ async def beauty_shoulder_backtest(
             "total_trades": len(result.trades),
             "overall": _summary_dict(result.overall) if result.overall else None,
             "monthly": [_summary_dict(m) for m in result.monthly_stats],
+            "extended_metrics": _compute_backtest_extended_metrics(result.trades),
             "trades": [
                 {
                     "symbol": t.symbol,
