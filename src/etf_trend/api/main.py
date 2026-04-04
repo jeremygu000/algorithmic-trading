@@ -216,6 +216,7 @@ async def root():
             "/api/early-movers": "扫描早期强势股 (20日窗口涨幅 20%-30%)",
             "/api/beauty-shoulder/backtest": "美人肩策略历史回测",
             "/api/etf-trend/backtest": "ETF 趋势策略回测 (Regime→选股→配置→再平衡)",
+            "/api/trade/batch-execute": "批量执行交易计划 (多股票逐个下单)",
         },
     }
 
@@ -1247,6 +1248,54 @@ async def trade_execute_plan(req: ExecutePlanRequest):
     return {
         "plan": plan.to_dict(),
         "order": _order_to_dict(result),
+    }
+
+
+class BatchExecuteRequest(BaseModel):
+    symbols: list[str] = Field(min_length=1, max_length=50)
+    order_type: Literal["market", "limit", "bracket"] = "bracket"
+
+
+@app.post("/api/trade/batch-execute")
+async def trade_batch_execute(req: BatchExecuteRequest):
+    """Execute trade plans for multiple symbols sequentially (0.5s delay)."""
+    broker = _get_broker()
+    acct = broker.get_account()
+    portfolio_value = acct.portfolio_value
+
+    results: list[dict] = []
+    success_count = 0
+    failure_count = 0
+
+    for i, symbol in enumerate(req.symbols):
+        if i > 0:
+            await asyncio.sleep(0.5)
+
+        entry: dict = {"symbol": symbol, "plan": None, "order": None, "error": None}
+        try:
+            plan = _generate_plan(symbol)
+            entry["plan"] = plan.to_dict()
+            result = broker.execute_trade_plan(plan, portfolio_value, req.order_type)
+            if result.error:
+                entry["error"] = result.error
+                failure_count += 1
+            else:
+                entry["order"] = _order_to_dict(result)
+                success_count += 1
+        except HTTPException as exc:
+            entry["error"] = exc.detail
+            failure_count += 1
+        except Exception as exc:  # noqa: BLE001
+            entry["error"] = str(exc)
+            failure_count += 1
+
+        results.append(entry)
+
+    return {
+        "total": len(req.symbols),
+        "success_count": success_count,
+        "failure_count": failure_count,
+        "results": results,
     }
 
 

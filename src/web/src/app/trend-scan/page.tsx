@@ -13,9 +13,11 @@ import MenuItem from "@mui/material/MenuItem";
 import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import Button from "@mui/material/Button";
+import Checkbox from "@mui/material/Checkbox";
 import Sidebar from "@/components/Sidebar";
 import HeroBanner from "@/components/HeroBanner";
 import TradePlanModal from "@/components/TradePlanModal";
+import BatchExecuteModal from "@/components/BatchExecuteModal";
 
 const API_BASE = "http://localhost:8300";
 
@@ -51,6 +53,20 @@ export default function TrendScanPage() {
   const [planSymbol, setPlanSymbol] = useState<string | null>(null);
   const [planStockName, setPlanStockName] = useState("");
   const [planPrice, setPlanPrice] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [batchOpen, setBatchOpen] = useState(false);
+
+  const toggle = (symbol: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(symbol)) {
+        next.delete(symbol);
+      } else {
+        next.add(symbol);
+      }
+      return next;
+    });
+  };
 
   const handleTrendChange = (nextTrend: TrendDirection) => {
     if (nextTrend === trend) return;
@@ -79,7 +95,10 @@ export default function TrendScanPage() {
         }
         return res.json() as Promise<TrendScanData>;
       })
-      .then(setData)
+      .then((scanData) => {
+        setData(scanData);
+        setSelected(new Set());
+      })
       .catch((e: unknown) => {
         if (e instanceof Error && e.name === "AbortError") {
           return;
@@ -249,6 +268,56 @@ export default function TrendScanPage() {
                 </Box>
               </Box>
 
+              {data.stocks.length > 0 && (
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.5,
+                    px: 2,
+                    py: 1,
+                    bgcolor: "action.hover",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 2,
+                  }}
+                >
+                  <Checkbox
+                    size="small"
+                    checked={selected.size === data.stocks.length}
+                    indeterminate={selected.size > 0 && selected.size < data.stocks.length}
+                    onChange={() => {
+                      if (selected.size === data.stocks.length) {
+                        setSelected(new Set());
+                      } else {
+                        setSelected(new Set(data.stocks.map((s) => s.symbol)));
+                      }
+                    }}
+                    sx={{ p: 0 }}
+                  />
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    已选 <Box component="span" sx={{ fontFamily: "monospace", fontWeight: 700, color: "text.primary" }}>{selected.size}</Box> 只
+                  </Typography>
+                  <Box sx={{ flex: 1 }} />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    disabled={selected.size === 0}
+                    onClick={() => setBatchOpen(true)}
+                    sx={{
+                      bgcolor: "#3b89ff",
+                      color: "#ffffff",
+                      "&:hover": { bgcolor: "#2a78ee" },
+                      "&.Mui-disabled": { bgcolor: "action.disabledBackground" },
+                      fontWeight: 600,
+                      px: 2,
+                    }}
+                  >
+                    批量交易
+                  </Button>
+                </Box>
+              )}
+
               {data.stocks.length > 0 ? (
                 <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 3 }}>
                   {data.stocks.map((stock, idx) => {
@@ -262,6 +331,7 @@ export default function TrendScanPage() {
                         sx={{
                           borderRadius: 3,
                           transition: "border-color 0.2s, box-shadow 0.2s",
+                          borderColor: selected.has(stock.symbol) ? trendColorHex : undefined,
                           "&:hover": {
                             borderColor: trendColorHex,
                             boxShadow: `0 4px 24px rgba(0,0,0,0.18)`,
@@ -271,6 +341,12 @@ export default function TrendScanPage() {
                          <CardContent sx={{ p: 3 }}>
                           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
                              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                               <Checkbox
+                                 checked={selected.has(stock.symbol)}
+                                 onChange={() => toggle(stock.symbol)}
+                                 sx={{ p: 0, mr: 1 }}
+                                 size="small"
+                               />
                                <Box
                                 sx={{
                                   width: 40,
@@ -420,6 +496,14 @@ export default function TrendScanPage() {
         symbol={planSymbol ?? ""}
         stockName={planStockName}
         latestPrice={planPrice}
+      />
+      <BatchExecuteModal
+        open={batchOpen}
+        onClose={() => {
+          setBatchOpen(false);
+          setSelected(new Set());
+        }}
+        symbols={[...selected]}
       />
     </Box>
   );
