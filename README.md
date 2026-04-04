@@ -1,6 +1,6 @@
-# ETF Trend Following Backtester
-
 <div align="center">
+
+# ETF Trend Following Backtester
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
@@ -9,16 +9,16 @@
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED.svg)](docker-compose.yml)
 [![CI](https://img.shields.io/github/actions/workflow/status/jeremygu000/algorithmic-trading/ci.yml?label=CI)](https://github.com/jeremygu000/algorithmic-trading/actions)
 
-</div>
+A momentum and trend-filtered ETF portfolio backtesting system with a full-stack web analytics dashboard.
 
-基于动量和趋势过滤的 ETF 投资组合策略回测系统，配有全栈 Web 分析界面。
+</div>
 
 ---
 
-## 🖥️ 界面预览
+## 🖥️ Screenshots
 
 <details>
-<summary><b>首页 — 量化分析系统仪表盘</b></summary>
+<summary><b>Home — Quantitative Analysis Dashboard</b></summary>
 
 | Light Mode | Dark Mode |
 |---|---|
@@ -27,28 +27,28 @@
 </details>
 
 <details open>
-<summary><b>市场状态 — Risk On/Off 实时监控</b></summary>
+<summary><b>Market Status — Risk On/Off Real-time Monitoring</b></summary>
 
 ![Market Status](docs/screenshots/market-page-fixed.png)
 
 </details>
 
 <details>
-<summary><b>趋势扫描 — 连续 K 日涨跌形态筛选</b></summary>
+<summary><b>Trend Scan — Consecutive K-day Rise/Fall Pattern Screening</b></summary>
 
 ![Trend Scan](docs/screenshots/trend-scan-result.png)
 
 </details>
 
 <details>
-<summary><b>个股推荐 — Watch List 动态候选池</b></summary>
+<summary><b>Stock Picks — Watch List Dynamic Candidate Pool</b></summary>
 
 ![Stock Picks](docs/screenshots/picks-page.png)
 
 </details>
 
 <details>
-<summary><b>股票分析 — 深度技术面分析与交易计划</b></summary>
+<summary><b>Stock Analysis — Deep Technical Analysis and Trading Plan</b></summary>
 
 ![Stock Detail](docs/screenshots/stock-detail-aapl.png)
 
@@ -56,136 +56,136 @@
 
 ---
 
-## 📚 这个项目是做什么的？
+## 📚 What Does This Project Do?
 
-这个项目帮助你**模拟测试一个投资策略**，看看如果你从过去某个时间点开始用这个策略投资，到现在会赚多少钱（或亏多少钱）。
+This project helps you simulate and test an investment strategy to see how much profit (or loss) you would have made if you had invested using this strategy from a past point in time until now.
 
-### 核心概念解释
+### Key Concepts Explained
 
-| 术语                | 通俗解释                                                                                        |
+| Term                | Explanation                                                                                     |
 | ------------------- | ----------------------------------------------------------------------------------------------- |
-| **ETF**             | 一篮子股票打包成一个产品，买一份 ETF 就等于同时买了很多股票。比如 SPY 代表美国最大的 500 家公司 |
-| **回测 (Backtest)** | 用历史数据模拟"如果当时这样投资会怎样"，类似于"事后诸葛亮"                                      |
-| **动量 (Momentum)** | 最近涨得好的东西往往继续涨，最近跌的往往继续跌                                                  |
-| **趋势 (Trend)**    | 价格的长期方向，上升趋势意味着整体在涨                                                          |
+| **ETF**             | A basket of stocks packaged into one product. Buying one ETF is like buying many stocks at once. For example, SPY represents the 500 largest US companies |
+| **Backtest**        | Using historical data to simulate "what if we had invested this way back then," similar to hindsight analysis |
+| **Momentum**        | Assets that have recently performed well tend to continue rising, and those that fell tend to continue falling |
+| **Trend**           | The long-term direction of price. An uptrend means the overall movement is rising                 |
 
 ---
 
-## 🔄 策略工作流程
+## 🔄 Strategy Workflow
 
 ```mermaid
 flowchart TD
-    A[📊 获取历史价格数据] --> B{价格 > 200日均线?}
-    B -->|是 ✅| C[通过趋势过滤]
-    B -->|否 ❌| D[权重 = 0<br>持有现金]
-    C --> E{动量 > 0?}
-    E -->|是 ✅| F[纳入投资组合]
-    E -->|否 ❌| D
-    F --> G[按波动率分配权重]
-    G --> H[低波动资产权重高]
-    H --> I[每月末重新调整]
-    I --> J[T+1 执行交易]
-    J --> K[计算收益和风险指标]
+    A[📊 Fetch Historical Price Data] --> B{Price > 200-day MA?}
+    B -->|Yes ✅| C[Pass Trend Filter]
+    B -->|No ❌| D[Weight = 0<br>Hold Cash]
+    C --> E{Momentum > 0?}
+    E -->|Yes ✅| F[Include in Portfolio]
+    E -->|No ❌| D
+    F --> G[Allocate Weights by Volatility]
+    G --> H[Higher Weight for Low Vol Assets]
+    H --> I[Rebalance Monthly]
+    I --> J[Execute T+1 at Close]
+    J --> K[Calculate Returns and Risk Metrics]
 
     style D fill:#f9f,stroke:#333
 ```
 
-### 策略特点
+### Strategy Features
 
-> **只做多 (Long-Only)**: 本策略只买入资产，不做空。当资产不满足条件时，该资产权重为 0，相当于持有现金。如果所有资产都不满足条件，则 100% 持有现金。
+> **Long-Only**: This strategy only buys assets and does not short. When an asset fails to meet conditions, its weight becomes 0, equivalent to holding cash. If all assets fail to meet conditions, the portfolio holds 100% cash.
 
-1. **只买上涨趋势的资产** - 价格在 200 天平均价格之上
-2. **只买最近表现好的** - 动量为正
-3. **稳定的多投，波动大的少投** - 反向波动率加权
-4. **每月调整一次** - 不需要天天盯盘
-5. **不满足条件则持有现金** - 自动避险
-
----
-
-## 📈 输出图表解读
-
-运行回测后会生成 4 张图表：
-
-### 图表 1: Normalized Adj Close (归一化价格)
-
-```
-用途: 比较不同资产的涨跌幅度
-解读: 所有资产从 100 开始，最后谁高谁涨得多
-```
-
-- 如果 SPY 从 100 涨到 300，表示涨了 200%
-- 所有资产统一起点，方便比较
-
-### 图表 2: Portfolio Weights (投资组合权重)
-
-```
-用途: 显示每个月钱是怎么分配的
-解读: 不同颜色代表不同资产，高度代表占比
-```
-
-- 如果 SPY 占 40%，表示 100 块钱中 40 块买了 SPY
-- 空白区域表示持有现金（没有符合条件的资产）
-
-### 图表 3: Strategy vs Benchmark (策略 vs 基准)
-
-```
-用途: 你的策略和"什么都不做只买 SPY"的对比
-解读: 策略线在上方 = 跑赢市场，在下方 = 跑输市场
-```
-
-- **理想情况**: 策略线始终在上方
-- **糟糕情况**: 策略线始终在下方
-
-### 图表 4: Drawdown (回撤)
-
-```
-用途: 显示从最高点跌了多少
-解读: 越深表示亏损越大，越浅越好
-```
-
-- 回撤 -20% 意味着如果最高时有 100 万，现在只剩 80 万
-- 投资者通常最怕大回撤
+1. **Only buy assets in uptrends** - Price above 200-day moving average
+2. **Only buy recent winners** - Positive momentum
+3. **Higher weight for stable assets, lower for volatile ones** - Inverse volatility weighting
+4. **Rebalance monthly** - No need for daily monitoring
+5. **Hold cash when conditions aren't met** - Automatic hedging
 
 ---
 
-## 📊 绩效指标解读
+## 📈 Understanding Output Charts
 
-运行后会输出类似这样的数据：
+After running backtest, 4 charts are generated:
+
+### Chart 1: Normalized Adj Close
 
 ```
-Ann Return            0.003607    # 年化收益率
-Ann Vol               0.028755    # 年化波动率
-Sharpe                0.139592    # 夏普比率
-Max Drawdown         -0.080382    # 最大回撤
-Calmar                0.044867    # 卡玛比率
-Avg Daily Turnover    0.054713    # 平均日换手率
-Avg Cost (bps/day)    0.109426    # 平均日交易成本
+Purpose: Compare return percentages across different assets
+Interpretation: All assets start at 100, whoever ends higher had better returns
 ```
 
-### 指标含义与评估方法
+- If SPY rises from 100 to 300, it means a 200% gain
+- All assets have unified starting point for easy comparison
 
-| 指标                        | 含义                     | 如何评估                                   |
-| --------------------------- | ------------------------ | ------------------------------------------ |
-| **Ann Return (年化收益)**   | 平均每年赚多少           | 与基准 (SPY) 相比是否有超额收益            |
-| **Ann Vol (年化波动)**      | 每年涨跌的剧烈程度       | 是否在个人风险承受范围内                   |
-| **Sharpe (夏普比率)**       | 承担一份风险获得多少回报 | 滚动 Sharpe 是否稳定，是否长期退化         |
-| **Max Drawdown (最大回撤)** | 最惨的时候亏了多少       | 是否在可承受范围内（通常 -20% 是心理门槛） |
-| **Calmar (卡玛比率)**       | 年化收益 / 最大回撤      | 综合评估收益与尾部风险，越高越好           |
+### Chart 2: Portfolio Weights
 
-> ⚠️ **注意**: 没有绝对的"好"或"坏"标准。指标需要结合市场环境、投资周期、个人风险偏好综合判断。同一策略在牛市和熊市的表现可能截然不同。
+```
+Purpose: Show how money is allocated each month
+Interpretation: Different colors represent different assets, height represents allocation percentage
+```
+
+- If SPY accounts for 40%, it means 40 out of 100 dollars are invested in SPY
+- Blank areas represent cash holdings (no assets meeting conditions)
+
+### Chart 3: Strategy vs Benchmark
+
+```
+Purpose: Compare your strategy against "just buy SPY and hold"
+Interpretation: Strategy line above = outperform market, below = underperform market
+```
+
+- **Ideal case**: Strategy line always above
+- **Poor case**: Strategy line always below
+
+### Chart 4: Drawdown
+
+```
+Purpose: Show how much value decreased from the peak
+Interpretation: Deeper drawdowns mean larger losses, shallower is better
+```
+
+- A -20% drawdown means if you had $1 million at peak, you now have $800K
+- Investors typically fear large drawdowns most
+
+---
+
+## 📊 Performance Metrics Explained
+
+After running, you'll see output similar to:
+
+```
+Ann Return            0.003607    # Annualized Return
+Ann Vol               0.028755    # Annualized Volatility
+Sharpe                0.139592    # Sharpe Ratio
+Max Drawdown         -0.080382    # Maximum Drawdown
+Calmar                0.044867    # Calmar Ratio
+Avg Daily Turnover    0.054713    # Average Daily Turnover
+Avg Cost (bps/day)    0.109426    # Average Daily Trading Cost
+```
+
+### Metrics Explanation and Evaluation
+
+| Metric                      | Meaning                              | How to Evaluate                                    |
+| --------------------------- | ------------------------------------ | -------------------------------------------------- |
+| **Ann Return**              | Average annual profit                | Whether it has excess returns vs benchmark (SPY)   |
+| **Ann Vol**                 | Annual volatility magnitude          | Whether it's within your risk tolerance            |
+| **Sharpe**                  | Return per unit of risk taken        | Whether rolling Sharpe is stable, showing long-term decay |
+| **Max Drawdown**            | Worst-case loss                      | Whether it's within your tolerance (typically -20% is psychological threshold) |
+| **Calmar**                  | Annualized Return / Max Drawdown     | Overall assessment of return vs tail risk, higher is better |
+
+> ⚠️ **Note**: There's no absolute "good" or "bad" standard. Metrics must be evaluated together with market environment, investment period, and personal risk preference. The same strategy can perform very differently in bull and bear markets.
 
 ```mermaid
 graph LR
-    subgraph 风险指标
-        A[年化波动率]
-        B[最大回撤]
+    subgraph Risk Metrics
+        A[Annualized Volatility]
+        B[Maximum Drawdown]
     end
-    subgraph 收益指标
-        C[年化收益]
+    subgraph Return Metrics
+        C[Annualized Return]
     end
-    subgraph 综合指标
-        D[夏普比率<br>收益/风险]
-        E[卡玛比率<br>收益/尾部风险]
+    subgraph Composite Metrics
+        D[Sharpe Ratio<br>Return/Risk]
+        E[Calmar Ratio<br>Return/Tail Risk]
     end
     A --> D
     B --> E
@@ -195,155 +195,155 @@ graph LR
 
 ---
 
-## ⚠️ 假设与局限性
+## ⚠️ Assumptions and Limitations
 
-本回测系统基于以下简化假设，实际交易中可能存在差异：
+This backtest system is based on the following simplified assumptions, which may differ in actual trading:
 
-| 假设         | 说明                                                        |
-| ------------ | ----------------------------------------------------------- |
-| **数据源**   | 使用 Tiingo adjusted close（已调整分红、拆股）              |
-| **执行时机** | 月末计算信号，T+1 以收盘价执行（`weights.shift(1)`）        |
-| **交易成本** | 简化模型：`turnover × cost_bps`，**不含滑点和市场冲击成本** |
-| **流动性**   | 假设可以按收盘价无限量成交，不考虑大额订单对价格的影响      |
-| **现金收益** | 持有现金期间收益为 0，未计入货币基金利息                    |
+| Assumption          | Explanation                                                      |
+| ------------------- | ---------------------------------------------------------------- |
+| **Data Source**     | Uses Tiingo adjusted close (adjusted for dividends, splits)      |
+| **Execution Timing**| Signals calculated at month-end, executed T+1 at close price (`weights.shift(1)`) |
+| **Trading Costs**   | Simplified model: `turnover × cost_bps`, **excludes slippage and market impact** |
+| **Liquidity**       | Assumes unlimited trading at close price, ignores large order price impact |
+| **Cash Returns**    | Cash holdings earn 0%, does not include money market fund interest |
 
 ---
 
 ## 🗺️ Roadmap
 
-后续可能增加的功能：
+Potential future features:
 
-- [ ] **Vol Targeting** - 组合层面动态杠杆，真正达到目标年化波动率
-- [ ] **Top-N 筛选** - 横截面动量排序，只持有前 N 名资产
-- [ ] **Regime Filter** - 根据宏观环境（VIX、利率曲线）动态调整敞口
-- [ ] **多数据源支持** - 接入 Polygon 实时数据，支持盘中执行
-- [ ] **滑点模型** - 更真实的交易成本估计
+- [ ] **Vol Targeting** - Dynamic portfolio-level leverage to achieve target annualized volatility
+- [ ] **Top-N Selection** - Cross-sectional momentum ranking, hold only top N assets
+- [ ] **Regime Filter** - Dynamically adjust exposure based on macro environment (VIX, yield curve)
+- [ ] **Multi-data Source Support** - Integrate Polygon real-time data, support intraday execution
+- [ ] **Slippage Model** - More realistic trading cost estimation
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 安装依赖
+### Install Dependencies
 
 ```bash
 uv sync
 ```
 
-### 🌐 启动 Web 应用 & API
+### 🌐 Launch Web Application & API
 
-为了获得最佳体验，可以使用以下命令一键启动全栈应用：
+For the best experience, use this command to launch the full-stack application in one go:
 
-**1. 初始化环境 (首次运行)**
+**1. Initialize Environment (first run)**
 
 ```bash
-npm install     # 安装根目录工具
-npm run setup   # 同时安装 Python 和 Frontend 依赖
+npm install     # Install root tools
+npm run setup   # Install both Python and Frontend dependencies
 ```
 
-**2. 启动服务**
+**2. Start Services**
 
 ```bash
 npm run dev
 ```
 
-这将同时启动：
+This launches both:
 
-- 🚀 **API 服务**: http://localhost:8300
-- 💻 **Web 界面**: http://localhost:3200
+- 🚀 **API Service**: http://localhost:8300
+- 💻 **Web Interface**: http://localhost:3200
 
-也可以单独运行：
+Or run individually:
 
-- `npm run api`: 只启动后端 API
-- `npm run ui`: 只启动前端 Web UI
+- `npm run api`: Start backend API only
+- `npm run ui`: Start frontend Web UI only
 
-### 🏃 常用命令 (Daily Usage)
+### 🏃 Common Commands (Daily Usage)
 
-**1. 生成最全面投资报告 (每周推荐)** 🌟
+**1. Generate Comprehensive Investment Report (weekly recommended)** 🌟
 
-这是**首选命令**，生成包含所有功能的完整 PDF 报告：
+This is the preferred command, generating a complete PDF report with all features:
 
 ```bash
 uv run python -m etf_trend.scripts.weekly_report --out weekly_full.pdf
 ```
 
-- **市场状态**: Risk On/Off 判断
-- **ETF 核心配置**: 基于最小方差优化的权重
-- **个股卫星推荐**: Top-10 多因子精选个股
-- **交易执行计划**: 入场点、止损点、移动止损 (新功能 🆕)
-- **AI 深度分析**: 自动解读市场趋势
+- **Market Status**: Risk On/Off determination
+- **ETF Core Allocation**: Weights based on minimum variance optimization
+- **Stock Satellite Picks**: Top-10 multi-factor selected stocks
+- **Trading Execution Plan**: Entry points, stop-loss, trailing stop-loss (new feature 🆕)
+- **AI Deep Analysis**: Automated market trend interpretation
 
-**2. 个股推荐 (含多级买卖点)** 🛰️
+**2. Stock Picks (with multi-level entry/exit points)** 🛰️
 
-输出个股推荐，每只股票包含 **3 入场 / 3 止损 / 3 止盈** 共 9 个价位：
+Output stock recommendations with 3 entry / 3 stop-loss / 3 take-profit levels (9 price levels total):
 
 ```bash
 uv run python -m etf_trend.scripts.stock_picks
 ```
 
-**3. 运行历史回测 (Backtest)** 📜
+**3. Run Historical Backtest** 📜
 
-验证策略在过去 10+ 年的表现（不含个股）：
+Verify strategy performance over 10+ years (excludes individual stocks):
 
 ```bash
 uv run python -m etf_trend.scripts.export_report --out backtest_report.pdf
 ```
 
-**4. 每日市场信号 (Daily Signal)** ⚡
+**4. Daily Market Signal** ⚡
 
-快速检查今日市场状态和风险预算：
+Quickly check today's market status and risk budget:
 
 ```bash
 uv run python -m etf_trend.scripts.daily_signal
 ```
 
-> 💡 **提示**: 使用 AI 分析需在 `.env` 中配置 `LLM_API_KEY`。
+> 💡 **Tip**: AI analysis requires `LLM_API_KEY` configured in `.env`.
 
 ---
 
-## 🧪 开发命令
+## 🧪 Development Commands
 
 ```bash
-# 运行测试
+# Run tests
 uv run pytest tests/ -v
 
-# 代码格式化
+# Format code
 uv run black src/ tests/
 ```
 
 ---
 
-## ⚙️ 配置
+## ⚙️ Configuration
 
-配置文件: `src/etf_trend/configs/default.yaml`
+Configuration file: `src/etf_trend/configs/default.yaml`
 
-### ETF 资产池
+### ETF Asset Universe
 
-| 类型   | ETF                                               | 说明      |
-| ------ | ------------------------------------------------- | --------- |
-| 股票类 | SPY, QQQ, IWM, MTUM, XLK, XLF, XLV, XLE, XLI, XLY | 大类+行业 |
-| 防守类 | TLT, IEF, GLD                                     | 债券+黄金 |
+| Type              | ETF                                               | Description       |
+| ----------------- | ------------------------------------------------- | ----------------- |
+| Equity            | SPY, QQQ, IWM, MTUM, XLK, XLF, XLV, XLE, XLI, XLY | Broad + Sector    |
+| Defensive         | TLT, IEF, GLD                                     | Bonds + Gold      |
 
-### 个股池（卫星持仓）
+### Stock Universe (Satellite Holdings)
 
-| 行业 | 股票                                                                          |
-| ---- | ----------------------------------------------------------------------------- |
-| 科技 | AAPL 苹果, MSFT 微软, GOOGL 谷歌, AMZN 亚马逊, META, NVDA 英伟达, TSLA 特斯拉 |
-| 消费 | WMT 沃尔玛, HD 家得宝, MCD 麦当劳, COST 好市多                                |
-| 金融 | JPM 摩根大通, V Visa, MA 万事达                                               |
-| 医疗 | JNJ 强生, UNH 联合健康                                                        |
+| Sector | Stocks                                                                        |
+| ------ | ----------------------------------------------------------------------------- |
+| Tech   | AAPL Apple, MSFT Microsoft, GOOGL Google, AMZN Amazon, META, NVDA NVIDIA, TSLA Tesla |
+| Consumer | WMT Walmart, HD Home Depot, MCD McDonald's, COST Costco                    |
+| Finance | JPM JPMorgan, V Visa, MA Mastercard                                        |
+| Healthcare | JNJ Johnson & Johnson, UNH UnitedHealth                                 |
 
-### 市场状态机参数
+### Market State Machine Parameters
 
-| 参数            | 默认值 | 说明             |
-| --------------- | ------ | ---------------- |
-| ma_window       | 200    | 长期趋势均线天数 |
-| momentum_window | 60     | 中期动量计算天数 |
-| vix_threshold   | 20     | VIX 恐慌阈值     |
+| Parameter           | Default | Description                  |
+| ------------------- | ------- | ---------------------------- |
+| ma_window           | 200     | Long-term trend MA days      |
+| momentum_window     | 60      | Medium-term momentum days    |
+| vix_threshold       | 20      | VIX panic threshold          |
 
-### 数据源
+### Data Sources
 
-| 用途     | 数据源            | 说明                           |
-| -------- | ----------------- | ------------------------------ |
-| ETF/个股 | 本地 Parquet 文件 | ~/.market_data/parquet/ 目录    |
-| 备用     | Tiingo            | 需 API 密钥，有限流           |
-| 基本面   | Yahoo Finance     | PE/PEG/ROE 等基本面数据       |
+| Purpose           | Data Source         | Notes                               |
+| ----------------- | ------------------- | ----------------------------------- |
+| ETF/Stocks        | Local Parquet files | ~/.market_data/parquet/ directory   |
+| Fallback          | Tiingo              | Requires API key, rate limited      |
+| Fundamentals      | Yahoo Finance       | PE/PEG/ROE and other fundamental data |
