@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Card from "@mui/material/Card";
@@ -65,6 +65,39 @@ interface Order {
 type OrderTab = "open" | "closed" | "all";
 type OrderType = "market" | "limit" | "bracket";
 type Side = "buy" | "sell";
+
+const WS_URL = "ws://localhost:8300/ws/trades";
+const WS_RECONNECT_BASE = 1000;
+const WS_RECONNECT_MAX = 30000;
+
+interface TradeEvent {
+  type: "trade_update" | "ping";
+  event?: string;
+  order?: {
+    order_id: string | null;
+    symbol: string | null;
+    side: string | null;
+    status: string | null;
+    filled_qty: string | null;
+    filled_avg_price: string | null;
+  };
+  fill_price?: string;
+  fill_qty?: string;
+  position_qty?: string;
+  ts?: number;
+}
+
+const EVENT_LABELS: Record<string, string> = {
+  new: "新订单已提交",
+  accepted: "订单已接受",
+  fill: "订单已成交",
+  partial_fill: "部分成交",
+  canceled: "订单已取消",
+  expired: "订单已过期",
+  rejected: "订单被拒绝",
+  replaced: "订单已替换",
+  done_for_day: "今日完成",
+};
 
 interface TradeForm {
   symbol: string;
@@ -1221,12 +1254,69 @@ export default function TradingPage() {
   const [orderTab, setOrderTab] = useState<OrderTab>("open");
   const [ordersTick, setOrdersTick] = useState(0);
 
+  const [wsConnected, setWsConnected] = useState(false);
+  const [tradeToast, setTradeToast] = useState<string | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backoffRef = useRef(WS_RECONNECT_BASE);
+
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({
     open: false,
     title: "",
     message: "",
     onConfirm: () => {},
   });
+
+  const handleTradeEvent = useCallback((evt: TradeEvent) => {
+    if (evt.type === "ping") {
+      wsRef.current?.send("pong");
+      return;
+    }
+    if (evt.type === "trade_update" && evt.event) {
+      const label = EVENT_LABELS[evt.event] ?? evt.event;
+      const sym = evt.order?.symbol ?? "";
+      setTradeToast(`${sym} ${label}`);
+      setPositionsTick((n) => n + 1);
+      setOrdersTick((n) => n + 1);
+    }
+  }, []);
+
+  useEffect(() => {
+    let unmounted = false;
+
+    function connect() {
+      if (unmounted) return;
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setWsConnected(true);
+        backoffRef.current = WS_RECONNECT_BASE;
+      };
+      ws.onclose = () => {
+        setWsConnected(false);
+        if (!unmounted) {
+          reconnectTimer.current = setTimeout(() => {
+            backoffRef.current = Math.min(backoffRef.current * 2, WS_RECONNECT_MAX);
+            connect();
+          }, backoffRef.current);
+        }
+      };
+      ws.onerror = () => ws.close();
+      ws.onmessage = (e) => {
+        try {
+          handleTradeEvent(JSON.parse(e.data) as TradeEvent);
+        } catch { /* ignore malformed messages */ }
+      };
+    }
+
+    connect();
+    return () => {
+      unmounted = true;
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      wsRef.current?.close();
+    };
+  }, [handleTradeEvent]);
 
   const reloadAccount = () => {
     setAccountLoading(true);
@@ -1391,6 +1481,43 @@ export default function TradingPage() {
             maxWidth: 1100,
             mx: "auto",
             px: 4,
+            pt: 1,
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
+          <Chip
+            size="small"
+            label={wsConnected ? "实时连接" : "离线"}
+            sx={{
+              fontSize: "0.7rem",
+              height: 22,
+              bgcolor: wsConnected
+                ? "rgba(54,187,128,0.15)"
+                : "rgba(255,113,52,0.15)",
+              color: wsConnected ? "#36bb80" : "#ff7134",
+              fontWeight: 600,
+              "& .MuiChip-icon": { fontSize: "0.6rem" },
+            }}
+            icon={
+              <Box
+                sx={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  bgcolor: wsConnected ? "#36bb80" : "#ff7134",
+                  ml: 0.8,
+                }}
+              />
+            }
+          />
+        </Box>
+
+        <Box
+          sx={{
+            maxWidth: 1100,
+            mx: "auto",
+            px: 4,
             py: 5,
             display: "flex",
             flexDirection: "column",
@@ -1482,6 +1609,22 @@ export default function TradingPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={!!tradeToast}
+        autoHideDuration={4000}
+        onClose={() => setTradeToast(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          severity="info"
+          variant="filled"
+          onClose={() => setTradeToast(null)}
+          sx={{ fontWeight: 600, fontSize: "0.85rem" }}
+        >
+          {tradeToast}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

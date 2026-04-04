@@ -18,12 +18,16 @@ API 文档：
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
+import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -41,6 +45,7 @@ from etf_trend.config.settings import EnvSettings, load_config
 from etf_trend.data.providers.unified import load_prices_with_fallback
 from etf_trend.data.providers.local_parquet import load_local_daily_ohlcv
 from etf_trend.brokers.alpaca_client import AlpacaBroker, OrderResult
+from etf_trend.api.ws_manager import ws_manager, get_trade_bridge
 from etf_trend.regime.engine import RegimeEngine
 from etf_trend.selector.satellite import StockSelector
 from etf_trend.execution.executor import TradeExecutor, calculate_atr
@@ -130,10 +135,34 @@ class WatchlistSymbolPayload(BaseModel):
 # FastAPI 应用
 # =============================================================================
 
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
+    """启动 Alpaca trade stream；关闭时优雅停止。"""
+    env = EnvSettings()
+    if env.alpaca_api_key and env.alpaca_secret_key:
+        bridge = get_trade_bridge(
+            api_key=env.alpaca_api_key,
+            secret_key=env.alpaca_secret_key,
+            paper="paper" in env.alpaca_base_url,
+        )
+        await bridge.start()
+        logger.info("Alpaca trade stream started")
+    yield
+    from etf_trend.api.ws_manager import trade_bridge
+
+    if trade_bridge is not None:
+        await trade_bridge.stop()
+        logger.info("Alpaca trade stream stopped")
+
+
 app = FastAPI(
     title="ETF Trend 股票分析 API",
     description="提供美股分析、蜡烛图、多级买卖点位的 RESTful API",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # 添加 CORS 中间件 (允许 Next.js 前端访问)
@@ -1181,3 +1210,31 @@ async def trade_close_position(symbol: str):
     if result.error:
         raise HTTPException(status_code=400, detail=result.error)
     return _order_to_dict(result)
+
+
+# =============================================================================
+# WebSocket 实时推送
+# =============================================================================
+
+HEARTBEAT_INTERVAL = 30
+
+
+@app.websocket("/ws/trades")
+async def ws_trades(websocket: WebSocket):
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            try:
+                msg = await asyncio.wait_for(websocket.receive_text(), timeout=HEARTBEAT_INTERVAL)
+                if msg == "pong":
+                    continue
+            except asyncio.TimeoutError:
+                await ws_manager.send_personal(
+                    websocket, {"type": "ping", "ts": __import__("time").time()}
+                )
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        logger.debug("WS connection error", exc_info=True)
+    finally:
+        ws_manager.disconnect(websocket)
