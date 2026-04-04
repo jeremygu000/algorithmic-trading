@@ -213,5 +213,8 @@ cache:
 # 数据源
 # =============================================================================
 providers:
+  local_parquet:
+    data_dir: ~/.market_data/parquet
+    interval: 1d
   tiingo:
     enabled: true
