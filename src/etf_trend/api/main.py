@@ -40,6 +40,7 @@ matplotlib.rcParams["axes.unicode_minus"] = False
 from etf_trend.config.settings import EnvSettings, load_config
 from etf_trend.data.providers.unified import load_prices_with_fallback
 from etf_trend.data.providers.local_parquet import load_local_daily_ohlcv
+from etf_trend.brokers.alpaca_client import AlpacaBroker, OrderResult
 from etf_trend.regime.engine import RegimeEngine
 from etf_trend.selector.satellite import StockSelector
 from etf_trend.execution.executor import TradeExecutor, calculate_atr
@@ -920,9 +921,7 @@ async def get_stock_ohlcv(
     """
     symbol = symbol.upper().strip()
     if interval not in ("daily", "weekly", "monthly"):
-        raise HTTPException(
-            status_code=400, detail="interval must be daily, weekly, or monthly"
-        )
+        raise HTTPException(status_code=400, detail="interval must be daily, weekly, or monthly")
 
     try:
         end_date = date.today()
@@ -937,32 +936,38 @@ async def get_stock_ohlcv(
         )
 
         if symbol not in ohlcv or ohlcv[symbol].empty:
-            raise HTTPException(
-                status_code=404, detail=f"No OHLCV data for {symbol}"
-            )
+            raise HTTPException(status_code=404, detail=f"No OHLCV data for {symbol}")
 
         df = ohlcv[symbol].copy()
 
         if interval == "weekly":
-            df = df.resample("W-FRI").agg(
-                {
-                    "Open": "first",
-                    "High": "max",
-                    "Low": "min",
-                    "Close": "last",
-                    "Volume": "sum",
-                }
-            ).dropna(subset=["Open"])
+            df = (
+                df.resample("W-FRI")
+                .agg(
+                    {
+                        "Open": "first",
+                        "High": "max",
+                        "Low": "min",
+                        "Close": "last",
+                        "Volume": "sum",
+                    }
+                )
+                .dropna(subset=["Open"])
+            )
         elif interval == "monthly":
-            df = df.resample("ME").agg(
-                {
-                    "Open": "first",
-                    "High": "max",
-                    "Low": "min",
-                    "Close": "last",
-                    "Volume": "sum",
-                }
-            ).dropna(subset=["Open"])
+            df = (
+                df.resample("ME")
+                .agg(
+                    {
+                        "Open": "first",
+                        "High": "max",
+                        "Low": "min",
+                        "Close": "last",
+                        "Volume": "sum",
+                    }
+                )
+                .dropna(subset=["Open"])
+            )
 
         # Lightweight-charts expects { time: "YYYY-MM-DD", open, high, low, close }
         candles = []
@@ -974,9 +979,7 @@ async def get_stock_ohlcv(
                     "high": round(float(row["High"]), 4),
                     "low": round(float(row["Low"]), 4),
                     "close": round(float(row["Close"]), 4),
-                    "volume": int(row["Volume"])
-                    if pd.notna(row["Volume"])
-                    else 0,
+                    "volume": int(row["Volume"]) if pd.notna(row["Volume"]) else 0,
                 }
             )
 
@@ -990,3 +993,191 @@ async def get_stock_ohlcv(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Alpaca Trading 端点
+# =============================================================================
+
+
+def _get_broker() -> AlpacaBroker:
+    env = EnvSettings()
+    if not env.alpaca_api_key or not env.alpaca_secret_key:
+        raise HTTPException(status_code=503, detail="Alpaca API keys not configured")
+    return AlpacaBroker(
+        api_key=env.alpaca_api_key,
+        secret_key=env.alpaca_secret_key,
+        paper="paper" in env.alpaca_base_url,
+    )
+
+
+class TradeRequest(BaseModel):
+    symbol: str = Field(min_length=1, max_length=10)
+    side: Literal["buy", "sell"] = "buy"
+    qty: float = Field(gt=0)
+    order_type: Literal["market", "limit", "bracket"] = "market"
+    limit_price: float | None = None
+    stop_loss_price: float | None = None
+    take_profit_price: float | None = None
+
+
+class ExecutePlanRequest(BaseModel):
+    symbol: str = Field(min_length=1, max_length=10)
+    order_type: Literal["market", "limit", "bracket"] = "bracket"
+
+
+def _order_to_dict(r: OrderResult) -> dict:
+    return {
+        "order_id": r.order_id,
+        "client_order_id": r.client_order_id,
+        "symbol": r.symbol,
+        "side": r.side,
+        "order_type": r.order_type,
+        "qty": r.qty,
+        "status": r.status,
+        "filled_qty": r.filled_qty,
+        "filled_avg_price": r.filled_avg_price,
+        "limit_price": r.limit_price,
+        "stop_price": r.stop_price,
+        "error": r.error,
+    }
+
+
+@app.get("/api/trade/account")
+async def trade_account():
+    broker = _get_broker()
+    acct = broker.get_account()
+    return {
+        "account_id": acct.account_id,
+        "status": acct.status,
+        "currency": acct.currency,
+        "cash": acct.cash,
+        "portfolio_value": acct.portfolio_value,
+        "equity": acct.equity,
+        "buying_power": acct.buying_power,
+        "pattern_day_trader": acct.pattern_day_trader,
+        "trading_blocked": acct.trading_blocked,
+    }
+
+
+@app.get("/api/trade/positions")
+async def trade_positions():
+    broker = _get_broker()
+    positions = broker.get_positions()
+    return [
+        {
+            "symbol": p.symbol,
+            "qty": p.qty,
+            "avg_entry_price": p.avg_entry_price,
+            "market_value": p.market_value,
+            "cost_basis": p.cost_basis,
+            "unrealized_pl": p.unrealized_pl,
+            "unrealized_plpc": p.unrealized_plpc,
+            "current_price": p.current_price,
+        }
+        for p in positions
+    ]
+
+
+@app.get("/api/trade/orders")
+async def trade_orders(
+    status: Literal["open", "closed", "all"] = "open",
+    limit: int = Query(default=50, ge=1, le=500),
+):
+    broker = _get_broker()
+    orders = broker.get_orders(status=status, limit=limit)
+    return [_order_to_dict(o) for o in orders]
+
+
+@app.post("/api/trade/execute")
+async def trade_execute(req: TradeRequest):
+    broker = _get_broker()
+
+    if req.order_type == "market":
+        result = broker.submit_market_order(req.symbol, req.qty, req.side)
+    elif req.order_type == "limit":
+        if req.limit_price is None:
+            raise HTTPException(status_code=400, detail="limit_price required for limit order")
+        result = broker.submit_limit_order(req.symbol, req.qty, req.limit_price, req.side)
+    else:
+        result = broker.submit_bracket_order(
+            symbol=req.symbol,
+            qty=req.qty,
+            limit_price=req.limit_price,
+            stop_loss_price=req.stop_loss_price,
+            take_profit_price=req.take_profit_price,
+            side=req.side,
+        )
+
+    if result.error:
+        raise HTTPException(status_code=400, detail=result.error)
+    return _order_to_dict(result)
+
+
+@app.post("/api/trade/execute-plan")
+async def trade_execute_plan(req: ExecutePlanRequest):
+    broker = _get_broker()
+
+    acct = broker.get_account()
+    portfolio_value = acct.portfolio_value
+
+    price_data = load_local_daily_ohlcv(
+        symbols=[req.symbol],
+        start=str((date.today() - timedelta(days=60)).isoformat()),
+        end=str(date.today().isoformat()),
+    )
+    if req.symbol not in price_data:
+        raise HTTPException(status_code=404, detail=f"No price data for {req.symbol}")
+
+    ohlcv_df = price_data[req.symbol]
+    close_series = ohlcv_df["Close"]
+    prices_df = pd.DataFrame({req.symbol: close_series})
+
+    executor = TradeExecutor()
+    plans = executor.generate_stock_plans(
+        prices=prices_df,
+        stock_candidates=[_SimpleCandidate(req.symbol)],
+    )
+
+    if not plans:
+        raise HTTPException(
+            status_code=404, detail=f"Could not generate trade plan for {req.symbol}"
+        )
+
+    plan = plans[0]
+    result = broker.execute_trade_plan(plan, portfolio_value, req.order_type)
+
+    if result.error:
+        raise HTTPException(status_code=400, detail=result.error)
+    return {
+        "plan": plan.to_dict(),
+        "order": _order_to_dict(result),
+    }
+
+
+class _SimpleCandidate:
+    def __init__(self, symbol: str):
+        self.symbol = symbol
+        self.recommendation = "BUY"
+        self.reason = "Manual execution via API"
+        self.hold_days = 20
+        self.exit_price = None
+        self.trailing_stop_pct = 0
+
+
+@app.delete("/api/trade/orders/{order_id}")
+async def trade_cancel_order(order_id: str):
+    broker = _get_broker()
+    success = broker.cancel_order(order_id)
+    if not success:
+        raise HTTPException(status_code=400, detail=f"Failed to cancel order {order_id}")
+    return {"cancelled": True, "order_id": order_id}
+
+
+@app.delete("/api/trade/positions/{symbol}")
+async def trade_close_position(symbol: str):
+    broker = _get_broker()
+    result = broker.close_position(symbol)
+    if result.error:
+        raise HTTPException(status_code=400, detail=result.error)
+    return _order_to_dict(result)

@@ -45,6 +45,15 @@ class EnvSettings(BaseSettings):
     llm_api_key: str = Field(default="", alias="LLM_API_KEY")
     llm_model: str = Field(default="qwen-plus", alias="LLM_MODEL")
 
+    # Alpaca 交易 API
+    alpaca_api_key: str = Field(default="", alias="ALPACA_API_KEY")
+    alpaca_secret_key: str = Field(default="", alias="ALPACA_SECRET_KEY")
+    alpaca_base_url: str = Field(
+        default="https://paper-api.alpaca.markets/v2",
+        alias="ALPACA_BASE_URL",
+    )
+    alpaca_paper: bool = Field(default=True, alias="ALPACA_PAPER")
+
 
 # =============================================================================
 # YAML 配置类定义

@@ -104,11 +104,7 @@ def load_local_daily_adjclose(
         con.close()
 
     if df.empty:
-        missing = [
-            sym
-            for sym in symbols
-            if not (data_dir / f"{sym}_{interval}.parquet").exists()
-        ]
+        missing = [sym for sym in symbols if not (data_dir / f"{sym}_{interval}.parquet").exists()]
         if missing:
             raise FileNotFoundError(
                 f"以下 ticker 缺少本地 parquet 文件: {missing}\n"
@@ -120,11 +116,7 @@ def load_local_daily_adjclose(
     df = df[df["symbol"].isin(symbols)]
 
     if df.empty:
-        missing = [
-            sym
-            for sym in symbols
-            if not (data_dir / f"{sym}_{interval}.parquet").exists()
-        ]
+        missing = [sym for sym in symbols if not (data_dir / f"{sym}_{interval}.parquet").exists()]
         if missing:
             raise FileNotFoundError(
                 f"以下 ticker 缺少本地 parquet 文件: {missing}\n"
@@ -141,15 +133,9 @@ def load_local_daily_adjclose(
     missing = [sym for sym in symbols if sym not in loaded_symbols]
 
     truly_missing = [
-        sym
-        for sym in missing
-        if not (data_dir / f"{sym}_{interval}.parquet").exists()
+        sym for sym in missing if not (data_dir / f"{sym}_{interval}.parquet").exists()
     ]
-    empty_range = [
-        sym
-        for sym in missing
-        if sym not in truly_missing
-    ]
+    empty_range = [sym for sym in missing if sym not in truly_missing]
 
     if empty_range:
         for sym in empty_range:
