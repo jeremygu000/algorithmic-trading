@@ -171,11 +171,26 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3200", "http://127.0.0.1:3200"],
+    allow_origins=[
+        "http://localhost:3200",
+        "http://127.0.0.1:3200",
+        "http://etf-trend-frontend:3200",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# =============================================================================
+# 健康检查
+# =============================================================================
+
+
+@app.get("/health")
+async def health_check():
+    """Docker / load-balancer health probe."""
+    return {"status": "ok"}
 
 
 # =============================================================================
