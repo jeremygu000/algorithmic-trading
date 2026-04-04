@@ -47,6 +47,7 @@ from etf_trend.data.providers.unified import load_prices_with_fallback
 from etf_trend.data.providers.local_parquet import load_local_daily_ohlcv
 from etf_trend.brokers.alpaca_client import AlpacaBroker, OrderResult
 from etf_trend.api.ws_manager import ws_manager, get_trade_bridge
+from etf_trend.risk.manager import risk_manager, risk_monitor
 from etf_trend.regime.engine import RegimeEngine
 from etf_trend.selector.satellite import StockSelector
 from etf_trend.execution.executor import TradePlan, TradeExecutor, calculate_atr
@@ -143,7 +144,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
-    """启动 Alpaca trade stream；关闭时优雅停止。"""
+    """启动 Alpaca trade stream + 风控监控；关闭时优雅停止。"""
     env = EnvSettings()
     if env.alpaca_api_key and env.alpaca_secret_key:
         bridge = get_trade_bridge(
@@ -153,7 +154,18 @@ async def lifespan(application: FastAPI) -> AsyncGenerator[None]:
         )
         await bridge.start()
         logger.info("Alpaca trade stream started")
+
+        # ── 风控监控 ──
+        risk_monitor.configure(
+            broker_factory=_get_broker,
+            ws_broadcast=ws_manager.broadcast,
+        )
+        await risk_monitor.start()
+
     yield
+
+    await risk_monitor.stop()
+
     from etf_trend.api.ws_manager import trade_bridge
 
     if trade_bridge is not None:
@@ -217,6 +229,7 @@ async def root():
             "/api/beauty-shoulder/backtest": "美人肩策略历史回测",
             "/api/etf-trend/backtest": "ETF 趋势策略回测 (Regime→选股→配置→再平衡)",
             "/api/trade/batch-execute": "批量执行交易计划 (多股票逐个下单)",
+            "/api/risk/status": "实盘风控状态 (日内P&L、持仓数、安全模式、告警)",
         },
     }
 
@@ -1092,6 +1105,35 @@ def _get_broker() -> AlpacaBroker:
     )
 
 
+def _validate_risk(
+    broker: AlpacaBroker,
+    symbol: str,
+    side: str,
+    qty: float,
+    price: float,
+) -> None:
+    acct = broker.get_account()
+    positions = broker.get_positions()
+    violations = risk_manager.validate_order(
+        symbol=symbol,
+        side=side,
+        qty=qty,
+        price=price,
+        position_count=len(positions),
+        buying_power=acct.buying_power,
+        portfolio_value=acct.portfolio_value,
+    )
+    if violations:
+        raise HTTPException(status_code=403, detail={"risk_violations": violations})
+
+
+def _estimate_plan_qty(plan: TradePlan, portfolio_value: float) -> int:
+    target_value = (
+        portfolio_value * plan.target_weight if plan.target_weight > 0 else portfolio_value * 0.05
+    )
+    return max(int(target_value / plan.current_price), 1)
+
+
 class TradeRequest(BaseModel):
     symbol: str = Field(min_length=1, max_length=10)
     side: Literal["buy", "sell"] = "buy"
@@ -1174,6 +1216,15 @@ async def trade_orders(
 async def trade_execute(req: TradeRequest):
     broker = _get_broker()
 
+    price = req.limit_price or 0.0
+    if price == 0.0:
+        positions = broker.get_positions()
+        pos = next((p for p in positions if p.symbol == req.symbol), None)
+        if pos:
+            price = pos.current_price
+
+    _validate_risk(broker, req.symbol, req.side, req.qty, price)
+
     if req.order_type == "market":
         result = broker.submit_market_order(req.symbol, req.qty, req.side)
     elif req.order_type == "limit":
@@ -1241,6 +1292,15 @@ async def trade_execute_plan(req: ExecutePlanRequest):
     broker = _get_broker()
     acct = broker.get_account()
     plan = _generate_plan(req.symbol)
+
+    _validate_risk(
+        broker,
+        req.symbol,
+        "buy",
+        _estimate_plan_qty(plan, acct.portfolio_value),
+        plan.current_price,
+    )
+
     result = broker.execute_trade_plan(plan, acct.portfolio_value, req.order_type)
 
     if result.error:
@@ -1275,6 +1335,15 @@ async def trade_batch_execute(req: BatchExecuteRequest):
         try:
             plan = _generate_plan(symbol)
             entry["plan"] = plan.to_dict()
+
+            _validate_risk(
+                broker,
+                symbol,
+                "buy",
+                _estimate_plan_qty(plan, portfolio_value),
+                plan.current_price,
+            )
+
             result = broker.execute_trade_plan(plan, portfolio_value, req.order_type)
             if result.error:
                 entry["error"] = result.error
@@ -1315,6 +1384,16 @@ async def trade_close_position(symbol: str):
     if result.error:
         raise HTTPException(status_code=400, detail=result.error)
     return _order_to_dict(result)
+
+
+# =============================================================================
+# 风控状态端点
+# =============================================================================
+
+
+@app.get("/api/risk/status")
+async def risk_status():
+    return risk_manager.state.to_dict()
 
 
 # =============================================================================

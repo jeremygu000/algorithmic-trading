@@ -205,6 +205,15 @@ class RiskCfg(BaseModel):
     # 交易成本 (basis points)
     cost_bps: float = 5.0
 
+    # ── 实盘风控参数 ──
+    daily_loss_limit_pct: float = 0.03
+    max_positions: int = 20
+    max_order_value: float = 50_000.0
+    buying_power_buffer: float = 0.05
+    stop_check_interval_sec: float = 30.0
+    stop_loss_warning_pct: float = 0.15
+    stop_loss_critical_pct: float = 0.25
+
 
 class CacheCfg(BaseModel):
     """缓存配置"""
