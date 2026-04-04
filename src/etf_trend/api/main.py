@@ -1213,6 +1213,198 @@ async def trade_close_position(symbol: str):
 
 
 # =============================================================================
+# Portfolio Analytics 端点
+# =============================================================================
+
+
+def _position_to_dict(p) -> dict:
+    return {
+        "symbol": p.symbol,
+        "qty": float(p.qty),
+        "avg_entry_price": float(p.avg_entry_price),
+        "market_value": float(p.market_value),
+        "cost_basis": float(p.cost_basis),
+        "unrealized_pl": float(p.unrealized_pl),
+        "unrealized_plpc": float(p.unrealized_plpc),
+        "current_price": float(p.current_price),
+    }
+
+
+@app.get("/api/portfolio/analytics")
+async def portfolio_analytics(days: int = Query(default=90, ge=7, le=365)):
+    """
+    综合 Portfolio 分析：账户概览 + 持仓分布 + 风险指标 + 历史净值曲线。
+
+    Returns:
+        account: 账户概要
+        positions: 持仓列表（含权重）
+        allocation: 持仓分布（饼图用）
+        risk_metrics: 风险指标（Sharpe, Sortino, MaxDD 等）
+        equity_curve: 历史净值曲线（折线图用）
+    """
+    broker = _get_broker()
+    acct = broker.get_account()
+    positions = broker.get_positions()
+
+    equity = float(acct.equity)
+    cash = float(acct.cash)
+    portfolio_value = float(acct.portfolio_value)
+
+    allocation = []
+    positions_list = []
+    total_unrealized_pl = 0.0
+
+    for p in positions:
+        mv = float(p.market_value)
+        upl = float(p.unrealized_pl)
+        total_unrealized_pl += upl
+        weight = mv / equity if equity > 0 else 0.0
+        pos_dict = _position_to_dict(p)
+        pos_dict["weight"] = round(weight, 4)
+        positions_list.append(pos_dict)
+        allocation.append(
+            {"name": p.symbol, "value": round(mv, 2), "weight": round(weight * 100, 2)}
+        )
+
+    cash_weight = cash / equity if equity > 0 else 0.0
+    allocation.append(
+        {"name": "现金", "value": round(cash, 2), "weight": round(cash_weight * 100, 2)}
+    )
+
+    # ── equity_curve: 加权组合净值曲线 ──
+    equity_curve: list[dict] = []
+    daily_returns: list[float] = []
+
+    if positions:
+        symbols = [p.symbol for p in positions]
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days)
+
+        try:
+            price_data = load_local_daily_ohlcv(
+                symbols=symbols,
+                start=start_date.isoformat(),
+                end=end_date.isoformat(),
+            )
+
+            if price_data:
+                close_frames = {}
+                for sym, df in price_data.items():
+                    if df is not None and not df.empty and "Close" in df.columns:
+                        close_frames[sym] = df["Close"]
+
+                if close_frames:
+                    close_df = pd.DataFrame(close_frames).dropna()
+
+                    if not close_df.empty:
+                        returns_df = close_df.pct_change().dropna()
+
+                        weights = {}
+                        for p in positions:
+                            if p.symbol in close_frames:
+                                w = (
+                                    float(p.market_value) / portfolio_value
+                                    if portfolio_value > 0
+                                    else 0
+                                )
+                                weights[p.symbol] = w
+
+                        if weights and not returns_df.empty:
+                            weight_series = pd.Series(weights)
+                            common_cols = returns_df.columns.intersection(weight_series.index)
+                            if len(common_cols) > 0:
+                                port_returns = (
+                                    returns_df[common_cols] * weight_series[common_cols]
+                                ).sum(axis=1)
+                                daily_returns = port_returns.tolist()
+
+                                nav = (1 + port_returns).cumprod()
+                                for idx, val in nav.items():
+                                    equity_curve.append(
+                                        {"date": str(idx.date()), "nav": round(float(val), 4)}
+                                    )
+        except Exception:
+            logger.warning("Failed to compute equity curve", exc_info=True)
+
+    # ── risk_metrics: Sharpe / Sortino / MaxDD / Win Rate ──
+    risk_metrics: dict = {
+        "sharpe_ratio": None,
+        "sortino_ratio": None,
+        "max_drawdown": None,
+        "max_drawdown_duration": None,
+        "annualized_return": None,
+        "annualized_volatility": None,
+        "win_rate": None,
+        "total_unrealized_pl": round(total_unrealized_pl, 2),
+        "total_unrealized_plpc": (
+            round(total_unrealized_pl / (equity - total_unrealized_pl) * 100, 2)
+            if (equity - total_unrealized_pl) > 0
+            else 0.0
+        ),
+    }
+
+    if daily_returns and len(daily_returns) >= 5:
+        ret_series = pd.Series(daily_returns)
+        mean_ret = ret_series.mean()
+        std_ret = ret_series.std()
+
+        ann_ret = mean_ret * 252
+        ann_vol = std_ret * np.sqrt(252)
+
+        sharpe = (mean_ret / std_ret) * np.sqrt(252) if std_ret > 0 else None
+
+        downside = ret_series[ret_series < 0]
+        downside_std = np.sqrt(np.mean(downside**2)) * np.sqrt(252) if len(downside) > 0 else 0
+        sortino = ann_ret / downside_std if downside_std > 0 else None
+
+        cumulative = (1 + ret_series).cumprod()
+        peak = cumulative.cummax()
+        drawdown = (cumulative - peak) / peak
+        max_dd = float(drawdown.min())
+
+        is_dd = drawdown < 0
+        if is_dd.any():
+            dd_groups = is_dd.astype(int)
+            groups = dd_groups.ne(dd_groups.shift()).cumsum()
+            dd_only = dd_groups[dd_groups == 1].groupby(groups)
+            max_dd_dur = int(dd_only.size().max()) if len(dd_only) > 0 else 0
+        else:
+            max_dd_dur = 0
+
+        win_rate = float((ret_series > 0).sum() / len(ret_series) * 100)
+
+        risk_metrics.update(
+            {
+                "sharpe_ratio": round(float(sharpe), 3) if sharpe is not None else None,
+                "sortino_ratio": round(float(sortino), 3) if sortino is not None else None,
+                "max_drawdown": round(max_dd * 100, 2),
+                "max_drawdown_duration": max_dd_dur,
+                "annualized_return": round(ann_ret * 100, 2),
+                "annualized_volatility": round(ann_vol * 100, 2),
+                "win_rate": round(win_rate, 1),
+            }
+        )
+
+    return {
+        "account": {
+            "account_id": acct.account_id,
+            "status": acct.status,
+            "currency": acct.currency,
+            "cash": cash,
+            "portfolio_value": portfolio_value,
+            "equity": equity,
+            "buying_power": float(acct.buying_power),
+            "pattern_day_trader": acct.pattern_day_trader,
+            "trading_blocked": acct.trading_blocked,
+        },
+        "positions": positions_list,
+        "allocation": allocation,
+        "risk_metrics": risk_metrics,
+        "equity_curve": equity_curve,
+    }
+
+
+# =============================================================================
 # WebSocket 实时推送
 # =============================================================================
 

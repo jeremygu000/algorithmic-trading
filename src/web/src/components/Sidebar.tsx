@@ -20,6 +20,7 @@ import StarIcon from "@mui/icons-material/Star";
 import CandlestickChartIcon from "@mui/icons-material/CandlestickChart";
 import AutoGraphIcon from "@mui/icons-material/AutoGraph";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
+import PieChartIcon from "@mui/icons-material/PieChart";
 import SearchIcon from "@mui/icons-material/Search";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { id: "/picks", label: "个股推荐", Icon: StarIcon },
   { id: "/beauty-shoulder", label: "美人肩", Icon: AutoGraphIcon },
   { id: "/trading", label: "交易中心", Icon: AccountBalanceWalletIcon },
+  { id: "/portfolio", label: "投资组合", Icon: PieChartIcon },
   { id: "/stock/AAPL", label: "股票分析", Icon: CandlestickChartIcon },
 ] as const;
 
