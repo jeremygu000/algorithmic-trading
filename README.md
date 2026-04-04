@@ -11,7 +11,48 @@
 
 </div>
 
-基于动量和趋势过滤的 ETF 投资组合策略回测系统。
+基于动量和趋势过滤的 ETF 投资组合策略回测系统，配有全栈 Web 分析界面。
+
+---
+
+## 🖥️ 界面预览
+
+<details>
+<summary><b>首页 — 量化分析系统仪表盘</b></summary>
+
+| Light Mode | Dark Mode |
+|---|---|
+| ![Dashboard Light](docs/screenshots/dashboard-full.png) | ![Dashboard Dark](docs/screenshots/dashboard-dark.png) |
+
+</details>
+
+<details open>
+<summary><b>市场状态 — Risk On/Off 实时监控</b></summary>
+
+![Market Status](docs/screenshots/market-page-fixed.png)
+
+</details>
+
+<details>
+<summary><b>趋势扫描 — 连续 K 日涨跌形态筛选</b></summary>
+
+![Trend Scan](docs/screenshots/trend-scan-result.png)
+
+</details>
+
+<details>
+<summary><b>个股推荐 — Watch List 动态候选池</b></summary>
+
+![Stock Picks](docs/screenshots/picks-page.png)
+
+</details>
+
+<details>
+<summary><b>股票分析 — 深度技术面分析与交易计划</b></summary>
+
+![Stock Detail](docs/screenshots/stock-detail-aapl.png)
+
+</details>
 
 ---
 

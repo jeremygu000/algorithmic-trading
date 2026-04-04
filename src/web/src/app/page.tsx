@@ -3,6 +3,66 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Button from "@mui/material/Button";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import Chip from "@mui/material/Chip";
+import Grid from "@mui/material/Grid";
+import SearchIcon from "@mui/icons-material/Search";
+import Sidebar from "@/components/Sidebar";
+import HeroBanner from "@/components/HeroBanner";
+
+const quickLinks = [
+  {
+    href: "/market",
+    icon: "🌍",
+    title: "市场状态",
+    desc: "实时监控市场情绪 (Risk On/Off)，查看风险预算分配与关键市场信号。",
+    hoverBorder: "success.main",
+    hoverText: "success.main",
+  },
+  {
+    href: "/trend-scan",
+    icon: "📡",
+    title: "趋势扫描",
+    desc: "按连续上涨/下跌形态自动扫描股票池，快速定位近 K 日强势或弱势标的。",
+    hoverBorder: "primary.main",
+    hoverText: "primary.main",
+  },
+  {
+    href: "/picks",
+    icon: "🎯",
+    title: "今日推荐",
+    desc: "AI 筛选的高动量个股列表，包含激进/稳健/保守三级买入方案与动态止损位。",
+    hoverBorder: "warning.main",
+    hoverText: "warning.main",
+  },
+  {
+    href: "/stock/AAPL",
+    icon: "📊",
+    title: "深度分析",
+    desc: "交互式 K 线图表，集成均线系统与关键支撑阻力位，提供完整的技术面诊断。",
+    hoverBorder: "error.main",
+    hoverText: "error.main",
+  },
+];
+
+const popularStocks = [
+  "AAPL",
+  "NVDA",
+  "TSLA",
+  "MSFT",
+  "GOOGL",
+  "AMZN",
+  "META",
+  "AMD",
+  "PLTR",
+  "COIN",
+];
 
 export default function Home() {
   const [symbol, setSymbol] = useState("");
@@ -16,162 +76,278 @@ export default function Home() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-16">
-      {/* Hero Section */}
-      <div className="text-center mb-20">
-        <div className="inline-block p-2 px-4 rounded-full bg-slate-900 border border-slate-800 text-sky-400 text-sm font-medium mb-6">
-          ✨ 量化交易系统 v2.0
-        </div>
-        <h1 className="text-5xl md:text-6xl font-bold mb-6 tracking-tight">
-          <span className="text-white">发现下一个</span>
-          <span className="bg-gradient-to-r from-sky-400 via-blue-500 to-cyan-400 bg-clip-text text-transparent">
-            {" "}
-            交易机会
-          </span>
-        </h1>
-        <p className="text-xl text-slate-400 mb-10 max-w-2xl mx-auto leading-relaxed">
-          基于动量和趋势的专业量化分析平台。提供多级买卖点位、ATR
-          动态止损与交互式蜡烛图分析。
-        </p>
-
-        {/* Search Box */}
-        <form
-          onSubmit={handleSearch}
-          className="max-w-xl mx-auto relative group"
+    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+      <Sidebar />
+      <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
+        <HeroBanner />
+        <Box
+          sx={{
+            maxWidth: 1100,
+            mx: "auto",
+            px: 4,
+            py: 5,
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
         >
-          <div className="absolute -inset-1 bg-gradient-to-r from-sky-500 to-blue-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-200"></div>
-          <div className="relative flex gap-2 p-2 bg-slate-900 border border-slate-700/50 rounded-xl">
-            <input
-              type="text"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value)}
-              placeholder="输入股票代码 (如 AAPL, MSFT)"
-              className="flex-1 px-4 py-3 bg-transparent text-white placeholder-slate-500 focus:outline-none text-lg"
+          <Box sx={{ textAlign: "center" }}>
+            <Chip
+              label="✨ 量化交易系统 v2.0"
+              size="small"
+              sx={{
+                mb: 3,
+                bgcolor: "background.paper",
+                color: "primary.main",
+                border: "1px solid",
+                borderColor: "divider",
+                fontWeight: 500,
+                fontSize: "0.8rem",
+              }}
             />
-            <button
-              type="submit"
-              className="px-8 py-3 bg-sky-500 hover:bg-sky-400 text-white font-semibold rounded-lg transition-all shadow-lg shadow-sky-500/20"
+
+            <Typography
+              variant="h2"
+              sx={{
+                fontWeight: 700,
+                mb: 2,
+                letterSpacing: "-0.02em",
+                fontSize: { xs: "2.5rem", md: "3.5rem" },
+              }}
             >
-              分析
-            </button>
-          </div>
-        </form>
-      </div>
+              <Box component="span" sx={{ color: "text.primary" }}>
+                发现下一个
+              </Box>
+              <Box
+                component="span"
+                sx={{
+                  background: "linear-gradient(90deg, #3b89ff 0%, #36bb80 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                {" "}
+                交易机会
+              </Box>
+            </Typography>
 
-      {/* Quick Links */}
-      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 mb-20">
-        <Link
-          href="/market"
-          className="group relative p-8 bg-slate-900 rounded-2xl border border-slate-800 hover:border-sky-500/50 transition-all hover:shadow-2xl hover:shadow-sky-500/10 overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <span className="text-8xl">🌍</span>
-          </div>
-          <div className="relative z-10">
-            <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-              🌍
-            </div>
-            <h3 className="text-xl font-bold mb-3 text-slate-200 group-hover:text-sky-400 transition-colors">
-              市场状态
-            </h3>
-            <p className="text-slate-400 leading-relaxed">
-              实时监控市场情绪 (Risk On/Off)，查看风险预算分配与关键市场信号。
-            </p>
-          </div>
-        </Link>
-
-        <Link
-          href="/trend-scan"
-          className="group relative p-8 bg-slate-900 rounded-2xl border border-slate-800 hover:border-emerald-500/50 transition-all hover:shadow-2xl hover:shadow-emerald-500/10 overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <span className="text-8xl">📡</span>
-          </div>
-          <div className="relative z-10">
-            <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-              📡
-            </div>
-            <h3 className="text-xl font-bold mb-3 text-slate-200 group-hover:text-emerald-400 transition-colors">
-              趋势扫描
-            </h3>
-            <p className="text-slate-400 leading-relaxed">
-              按连续上涨/下跌形态自动扫描股票池，快速定位近 K
-              日强势或弱势标的。
-            </p>
-          </div>
-        </Link>
-
-        <Link
-          href="/picks"
-          className="group relative p-8 bg-slate-900 rounded-2xl border border-slate-800 hover:border-blue-500/50 transition-all hover:shadow-2xl hover:shadow-blue-500/10 overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <span className="text-8xl">🎯</span>
-          </div>
-          <div className="relative z-10">
-            <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-              🎯
-            </div>
-            <h3 className="text-xl font-bold mb-3 text-slate-200 group-hover:text-blue-400 transition-colors">
-              今日推荐
-            </h3>
-            <p className="text-slate-400 leading-relaxed">
-              AI
-              筛选的高动量个股列表，包含激进/稳健/保守三级买入方案与动态止损位。
-            </p>
-          </div>
-        </Link>
-
-        <Link
-          href="/stock/AAPL"
-          className="group relative p-8 bg-slate-900 rounded-2xl border border-slate-800 hover:border-cyan-500/50 transition-all hover:shadow-2xl hover:shadow-cyan-500/10 overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <span className="text-8xl">📊</span>
-          </div>
-          <div className="relative z-10">
-            <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:scale-110 transition-transform duration-300">
-              📊
-            </div>
-            <h3 className="text-xl font-bold mb-3 text-slate-200 group-hover:text-cyan-400 transition-colors">
-              深度分析
-            </h3>
-            <p className="text-slate-400 leading-relaxed">
-              交互式 K
-              线图表，集成均线系统与关键支撑阻力位，提供完整的技术面诊断。
-            </p>
-          </div>
-        </Link>
-      </div>
-
-      {/* Popular Stocks */}
-      <div className="text-center">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-6">
-          热门关注
-        </h2>
-        <div className="flex flex-wrap justify-center gap-3">
-          {[
-            "AAPL",
-            "NVDA",
-            "TSLA",
-            "MSFT",
-            "GOOGL",
-            "AMZN",
-            "META",
-            "AMD",
-            "PLTR",
-            "COIN",
-          ].map((s) => (
-            <Link
-              key={s}
-              href={`/stock/${s}`}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-sky-500/30 rounded-lg text-sm font-medium text-slate-300 hover:text-sky-400 transition-all"
+            <Typography
+              variant="body1"
+              sx={{
+                color: "text.secondary",
+                mb: 4,
+                maxWidth: 560,
+                mx: "auto",
+                lineHeight: 1.8,
+                fontSize: "1.1rem",
+              }}
             >
-              {s}
-            </Link>
-          ))}
-        </div>
-      </div>
-    </div>
+              基于动量和趋势的专业量化分析平台。提供多级买卖点位、ATR 动态止损与交互式蜡烛图分析。
+            </Typography>
+
+            <Box
+              component="form"
+              onSubmit={handleSearch}
+              sx={{
+                maxWidth: 520,
+                mx: "auto",
+                display: "flex",
+                gap: 1.5,
+                p: 1,
+                bgcolor: "background.paper",
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 3,
+                transition: "border-color 0.2s",
+                "&:focus-within": {
+                  borderColor: "primary.main",
+                },
+              }}
+            >
+              <TextField
+                value={symbol}
+                onChange={(e) => setSymbol(e.target.value)}
+                placeholder="输入股票代码 (如 AAPL, MSFT)"
+                variant="standard"
+                fullWidth
+                InputProps={{
+                  disableUnderline: true,
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ color: "text.disabled", fontSize: 20 }} />
+                    </InputAdornment>
+                  ),
+                  sx: {
+                    px: 1,
+                    fontSize: "1rem",
+                    color: "text.primary",
+                    "& input::placeholder": { color: "text.disabled" },
+                  },
+                }}
+              />
+              <Button
+                type="submit"
+                variant="contained"
+                disableElevation
+                sx={{
+                  px: 4,
+                  py: 1.25,
+                  borderRadius: 2,
+                  fontWeight: 600,
+                  fontSize: "0.95rem",
+                  bgcolor: "primary.main",
+                  color: "#fff",
+                  whiteSpace: "nowrap",
+                  "&:hover": { bgcolor: "primary.dark" },
+                }}
+              >
+                分析
+              </Button>
+            </Box>
+          </Box>
+
+          <Grid container spacing={3}>
+            {quickLinks.map((item) => (
+              <Grid size={{ xs: 12, sm: 6, xl: 3 }} key={item.href}>
+                <Card
+                  component={Link}
+                  href={item.href}
+                  sx={{
+                    display: "block",
+                    textDecoration: "none",
+                    height: "100%",
+                    position: "relative",
+                    bgcolor: "background.paper",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 3,
+                    overflow: "hidden",
+                    transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s",
+                    cursor: "pointer",
+                    "&:hover": {
+                      borderColor: item.hoverBorder,
+                      transform: "translateY(-2px)",
+                      boxShadow: 4,
+                      "& .card-icon-bg": { opacity: 0.2 },
+                      "& .card-icon": { transform: "scale(1.1)" },
+                      "& .card-title": { color: item.hoverText },
+                    },
+                  }}
+                >
+                  <Box
+                    className="card-icon-bg"
+                    sx={{
+                      position: "absolute",
+                      top: 8,
+                      right: 12,
+                      fontSize: "6rem",
+                      lineHeight: 1,
+                      opacity: 0.07,
+                      transition: "opacity 0.2s",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {item.icon}
+                  </Box>
+
+                  <CardContent sx={{ p: 4, position: "relative", zIndex: 1 }}>
+                    <Box
+                      className="card-icon"
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        bgcolor: "action.hover",
+                        borderRadius: 2,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "1.5rem",
+                        mb: 3,
+                        transition: "transform 0.3s",
+                      }}
+                    >
+                      {item.icon}
+                    </Box>
+
+                    <Typography
+                      className="card-title"
+                      variant="h6"
+                      sx={{
+                        fontWeight: 700,
+                        mb: 1.5,
+                        color: "text.primary",
+                        transition: "color 0.2s",
+                      }}
+                    >
+                      {item.title}
+                    </Typography>
+
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "text.secondary",
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      {item.desc}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+
+          <Box sx={{ textAlign: "center" }}>
+            <Typography
+              variant="overline"
+              sx={{
+                color: "text.disabled",
+                letterSpacing: "0.12em",
+                fontWeight: 600,
+                display: "block",
+                mb: 2.5,
+              }}
+            >
+              热门关注
+            </Typography>
+
+            <Box
+              sx={{
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "center",
+                gap: 1.5,
+              }}
+            >
+              {popularStocks.map((s) => (
+                <Chip
+                  key={s}
+                  label={s}
+                  component={Link}
+                  href={`/stock/${s}`}
+                  clickable
+                  sx={{
+                    bgcolor: "background.paper",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    color: "text.secondary",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    px: 0.5,
+                    transition: "border-color 0.15s, color 0.15s, background-color 0.15s",
+                    "&:hover": {
+                      bgcolor: "action.hover",
+                      borderColor: "primary.main",
+                      color: "primary.main",
+                    },
+                  }}
+                />
+              ))}
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
   );
 }

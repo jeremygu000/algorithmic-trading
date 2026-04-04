@@ -3,6 +3,15 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CircularProgress from "@mui/material/CircularProgress";
+import Chip from "@mui/material/Chip";
+import Button from "@mui/material/Button";
+import Sidebar from "@/components/Sidebar";
+import HeroBanner from "@/components/HeroBanner";
 
 const API_BASE = "http://localhost:8300";
 
@@ -113,484 +122,1030 @@ export default function StockPage() {
     };
   }, [symbol]);
 
-  const recommendationStyle: Record<string, string> = {
-    强烈推荐: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    推荐: "bg-sky-500/10 text-sky-400 border-sky-500/20",
-    观望: "bg-slate-700/30 text-slate-400 border-slate-700/50",
+  const recommendationChipSx: Record<string, object> = {
+    强烈推荐: {
+      bgcolor: "rgba(16,185,129,0.1)",
+      color: "#34d399",
+      border: "1px solid rgba(16,185,129,0.2)",
+    },
+    推荐: {
+      bgcolor: "rgba(14,165,233,0.1)",
+      color: "#38bdf8",
+      border: "1px solid rgba(14,165,233,0.2)",
+    },
+    观望: {
+      bgcolor: "rgba(100,116,139,0.15)",
+      color: "#94a3b8",
+      border: "1px solid rgba(100,116,139,0.3)",
+    },
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 border-4 border-sky-500/30 border-t-sky-500 rounded-full animate-spin"></div>
-          <div className="text-slate-400">正在分析 {symbol} 数据...</div>
-        </div>
-      </div>
+      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+        <Sidebar />
+        <Box
+          component="main"
+          sx={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100vh",
+          }}
+        >
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <CircularProgress size={32} sx={{ color: "primary.main" }} />
+            <Typography sx={{ color: "text.secondary" }}>
+              正在分析 {symbol} 数据...
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        <div className="bg-rose-950/30 border border-rose-900/50 rounded-2xl p-8 text-center">
-          <h2 className="text-xl font-semibold text-rose-400 mb-2">查询失败</h2>
-          <p className="text-slate-400 mb-6">{error}</p>
-          <Link
-            href="/"
-            className="inline-block px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors"
-          >
-            返回首页
-          </Link>
-        </div>
-      </div>
+      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+        <Sidebar />
+        <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
+          <Box sx={{ maxWidth: 800, mx: "auto", px: 4, py: 12 }}>
+            <Box
+              sx={{
+                bgcolor: "rgba(159,18,57,0.15)",
+                border: "1px solid rgba(159,18,57,0.3)",
+                borderRadius: 3,
+                p: 6,
+                textAlign: "center",
+              }}
+            >
+              <Typography variant="h6" sx={{ color: "error.light", mb: 1, fontWeight: 600 }}>
+                查询失败
+              </Typography>
+              <Typography sx={{ color: "text.secondary", mb: 4 }}>{error}</Typography>
+              <Button
+                component={Link}
+                href="/"
+                variant="outlined"
+                sx={{
+                  borderColor: "divider",
+                  color: "text.primary",
+                  "&:hover": { bgcolor: "action.hover" },
+                }}
+              >
+                返回首页
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6 border-b border-slate-800 pb-8">
-        <div>
-          <div className="flex items-center gap-4 mb-2">
-            <h1 className="text-5xl font-bold text-white tracking-tight">
-              {data?.symbol}
-            </h1>
-            <div
-              className={`px-3 py-1.5 rounded-full border text-sm font-medium ${
-                recommendationStyle[data?.recommendation || "观望"]
-              }`}
-            >
-              {data?.recommendation}
-            </div>
-          </div>
-          <p className="text-slate-400 text-lg">{data?.name}</p>
-        </div>
-        <div className="text-right">
-          <div className="text-sm text-slate-500 mb-1 uppercase tracking-wide">
-            当前价格
-          </div>
-          <div className="text-4xl font-mono font-bold text-white">
-            ${data?.current_price.toFixed(2)}
-          </div>
-        </div>
-      </div>
+    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+      <Sidebar />
+      <Box component="main" sx={{ flex: 1, overflowY: "auto", height: "100vh" }}>
+        <HeroBanner
+          title="ETF Trend"
+          subtitle="股票分析"
+          description={`${symbol} 深度技术面分析与交易计划`}
+        />
+        <Box sx={{ maxWidth: 1200, mx: "auto", px: 4, py: 5 }}>
 
-      {/* Analysis Reason */}
-      <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 mb-8 flex gap-3 items-start">
-        <span className="text-sky-500 text-xl">💡</span>
-        <p className="text-slate-300 leading-relaxed pt-0.5">
-          <span className="text-slate-500 font-medium">分析结论：</span>{" "}
-          {data?.reason}
-        </p>
-      </div>
-
-      {/* Fundamentals Card */}
-      {data?.fundamentals?.peRatio && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 bg-slate-900 rounded-2xl p-6 border border-slate-800">
-          <div className="col-span-2 md:col-span-4 mb-2 flex items-center gap-2">
-            <span className="text-xl">🏢</span>
-            <h3 className="font-bold text-slate-200">基本面概览</h3>
-            {data.fundamentals.sector && (
-              <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-400">
-                {data.fundamentals.sector}
-              </span>
-            )}
-          </div>
-          <div>
-            <div className="text-xs text-slate-500">市盈率 (PE)</div>
-            <div className="text-lg font-mono text-slate-200 font-semibold">
-              {data.fundamentals.peRatio?.toFixed(1) || "N/A"}
-              <span className="text-xs text-slate-500 ml-1">x</span>
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-500">PEG Ratio</div>
-            <div
-              className={`text-lg font-mono font-semibold ${
-                (data.fundamentals.pegRatio || 0) < 1 &&
-                (data.fundamentals.pegRatio || 0) > 0
-                  ? "text-emerald-400"
-                  : "text-slate-200"
-              }`}
-            >
-              {data.fundamentals.pegRatio?.toFixed(2) || "N/A"}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-500">EPS (TTM)</div>
-            <div className="text-lg font-mono text-slate-200 font-semibold">
-              ${data.fundamentals.trailingEPS?.toFixed(2) || "N/A"}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-500">市值</div>
-            <div className="text-lg font-mono text-slate-200 font-semibold">
-              {data.fundamentals.marketCap
-                ? `$${(data.fundamentals.marketCap / 1e9).toFixed(1)}B`
-                : "N/A"}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AI Insights Card */}
-      {data?.ai_analysis && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 bg-gradient-to-br from-indigo-950/30 to-purple-950/30 rounded-2xl p-6 border border-indigo-500/20 shadow-lg shadow-indigo-500/5 relative overflow-hidden">
-          {/* Background decoration */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-
-          {/* Header */}
-          <div className="col-span-1 md:col-span-2 flex items-center gap-2 mb-2">
-            <span className="text-xl">🤖</span>
-            <h3 className="font-bold text-indigo-200">AI 智能预测 (实验性)</h3>
-            <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/30">
-              Alpha
-            </span>
-          </div>
-
-          {/* Pattern Matching */}
-          <div className="bg-slate-900/60 rounded-xl p-4 border border-indigo-500/10 backdrop-blur-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-1 h-4 bg-indigo-400 rounded-full"></div>
-              <h4 className="font-semibold text-slate-200 text-sm">
-                历史形态匹配 (Pattern Matching)
-              </h4>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">相似历史片段</span>
-                <span className="font-mono text-slate-200">
-                  {data.ai_analysis.pattern_match.similar_patterns_count} 组
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">历史胜率</span>
-                <span
-                  className={`font-mono font-bold ${
-                    data.ai_analysis.pattern_match.win_rate >= 0.6
-                      ? "text-emerald-400"
-                      : "text-slate-200"
-                  }`}
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: { xs: "column", md: "row" },
+              alignItems: { md: "flex-end" },
+              justifyContent: "space-between",
+              mb: 5,
+              gap: 3,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+              pb: 4,
+            }}
+          >
+            <Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 0.5 }}>
+                <Typography
+                  variant="h2"
+                  sx={{ fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1 }}
                 >
-                  {(data.ai_analysis.pattern_match.win_rate * 100).toFixed(0)}%
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">平均期望收益 (20d)</span>
-                <span
-                  className={`font-mono font-bold ${
-                    data.ai_analysis.pattern_match.avg_return > 0
-                      ? "text-emerald-400"
-                      : "text-rose-400"
-                  }`}
+                  {data?.symbol}
+                </Typography>
+                <Chip
+                  label={data?.recommendation}
+                  size="small"
+                  sx={{
+                    borderRadius: "999px",
+                    fontWeight: 500,
+                    fontSize: "0.8rem",
+                    height: 28,
+                    ...(recommendationChipSx[data?.recommendation ?? "观望"] ?? recommendationChipSx["观望"]),
+                  }}
+                />
+              </Box>
+              <Typography variant="body1" sx={{ color: "text.secondary" }}>
+                {data?.name}
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: { md: "right" } }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.disabled",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                  display: "block",
+                  mb: 0.5,
+                }}
+              >
+                当前价格
+              </Typography>
+              <Typography
+                variant="h3"
+                sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 700 }}
+              >
+                ${data?.current_price.toFixed(2)}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box
+            sx={{
+              bgcolor: "action.hover",
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              p: 2.5,
+              mb: 4,
+              display: "flex",
+              gap: 1.5,
+              alignItems: "flex-start",
+            }}
+          >
+            <Typography component="span" sx={{ fontSize: "1.2rem", lineHeight: 1.6 }}>
+              💡
+            </Typography>
+            <Typography variant="body2" sx={{ color: "text.primary", lineHeight: 1.75 }}>
+              <Typography
+                component="span"
+                variant="body2"
+                sx={{ color: "text.disabled", fontWeight: 500 }}
+              >
+                分析结论：
+              </Typography>{" "}
+              {data?.reason}
+            </Typography>
+          </Box>
+
+          {data?.fundamentals?.peRatio && (
+            <Card
+              variant="outlined"
+              sx={{ mb: 4, borderRadius: 3 }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr 1fr", md: "1fr 1fr 1fr 1fr" },
+                    gap: 3,
+                  }}
                 >
-                  {(data.ai_analysis.pattern_match.avg_return * 100).toFixed(1)}
-                  %
-                </span>
-              </div>
-              <div className="pt-2 text-xs text-indigo-300/80 italic border-t border-indigo-500/10">
-                &ldquo;{data.ai_analysis.pattern_match.projection}&rdquo;
-              </div>
-            </div>
-          </div>
-
-          {/* Trend Prediction */}
-          <div className="bg-slate-900/60 rounded-xl p-4 border border-indigo-500/10 backdrop-blur-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-1 h-4 bg-purple-400 rounded-full"></div>
-              <h4 className="font-semibold text-slate-200 text-sm">
-                趋势线性回归 (Linear Trend)
-              </h4>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">当前价格</span>
-                <span className="font-mono text-slate-200">
-                  ${data.ai_analysis.trend_prediction.current_price.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">5日理论目标</span>
-                <span className="font-mono text-purple-300 font-bold">
-                  $
-                  {data.ai_analysis.trend_prediction.target_price_5d.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-400">拟合优度 (R²)</span>
-                <span className="font-mono text-slate-200">
-                  {data.ai_analysis.trend_prediction.r_squared.toFixed(2)}
-                </span>
-              </div>
-              <div className="pt-2 text-xs text-purple-300/80 italic border-t border-purple-500/10">
-                &ldquo;{data.ai_analysis.trend_prediction.description}&rdquo;
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="grid lg:grid-cols-3 gap-8">
-        {/* Main Chart Area */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Chart */}
-          {data?.chart_base64 && (
-            <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 shadow-xl shadow-black/20">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-slate-200">
-                  📊 技术分析图表
-                </h2>
-                <div className="flex gap-4 text-xs font-mono">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-0.5 bg-green-500"></div>
-                    <span className="text-slate-400">入场</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-0.5 bg-red-500"></div>
-                    <span className="text-slate-400">止损</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-0.5 bg-blue-500"></div>
-                    <span className="text-slate-400">止盈</span>
-                  </div>
-                </div>
-              </div>
-              {/* eslint-disable-next-line @next/next/no-img-element -- base64 data URL, next/image not applicable */}
-              <img
-                src={`data:image/png;base64,${data.chart_base64}`}
-                alt={`${data.symbol} 蜡烛图`}
-                className="w-full rounded-lg"
-              />
-            </div>
+                  <Box sx={{ gridColumn: { xs: "1 / -1" }, display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                    <Typography component="span" sx={{ fontSize: "1.2rem" }}>🏢</Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      基本面概览
+                    </Typography>
+                    {data.fundamentals.sector && (
+                      <Chip
+                        label={data.fundamentals.sector}
+                        size="small"
+                        sx={{ fontSize: "0.7rem", height: 22 }}
+                      />
+                    )}
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: "text.disabled", display: "block", mb: 0.5 }}>
+                      市盈率 (PE)
+                    </Typography>
+                    <Typography
+                      variant="body1"
+                      sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 600 }}
+                    >
+                      {data.fundamentals.peRatio?.toFixed(1) || "N/A"}
+                      <Typography component="span" variant="caption" sx={{ color: "text.disabled", ml: 0.5 }}>
+                        x
+                      </Typography>
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: "text.disabled", display: "block", mb: 0.5 }}>
+                      PEG Ratio
+                    </Typography>
+                    <Typography
+                      variant="body1"
+                      sx={{
+                        fontFamily: "var(--font-geist-mono, monospace)",
+                        fontWeight: 600,
+                        color:
+                          (data.fundamentals.pegRatio || 0) < 1 &&
+                          (data.fundamentals.pegRatio || 0) > 0
+                            ? "success.main"
+                            : "text.primary",
+                      }}
+                    >
+                      {data.fundamentals.pegRatio?.toFixed(2) || "N/A"}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: "text.disabled", display: "block", mb: 0.5 }}>
+                      EPS (TTM)
+                    </Typography>
+                    <Typography
+                      variant="body1"
+                      sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 600 }}
+                    >
+                      ${data.fundamentals.trailingEPS?.toFixed(2) || "N/A"}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: "text.disabled", display: "block", mb: 0.5 }}>
+                      市值
+                    </Typography>
+                    <Typography
+                      variant="body1"
+                      sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 600 }}
+                    >
+                      {data.fundamentals.marketCap
+                        ? `$${(data.fundamentals.marketCap / 1e9).toFixed(1)}B`
+                        : "N/A"}
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
           )}
 
-          {/* Technical Indicators */}
-          <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-            <h3 className="text-lg font-bold mb-4 text-slate-200">
-              📉 技术指标详情
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
-                <div className="text-xs text-slate-500 uppercase mb-1">
-                  MA20 (短期趋势)
-                </div>
-                <div className="font-mono font-semibold text-slate-200">
-                  ${data?.technicals.ma20.toFixed(2)}
-                </div>
-              </div>
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
-                <div className="text-xs text-slate-500 uppercase mb-1">
-                  MA50 (中期趋势)
-                </div>
-                <div className="font-mono font-semibold text-slate-200">
-                  ${data?.technicals.ma50.toFixed(2)}
-                </div>
-              </div>
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
-                <div className="text-xs text-slate-500 uppercase mb-1">
-                  MA200 (长期趋势)
-                </div>
-                <div className="font-mono font-semibold text-slate-200">
-                  ${data?.technicals.ma200.toFixed(2)}
-                </div>
-              </div>
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
-                <div className="text-xs text-slate-500 uppercase mb-1">
-                  60日动量
-                </div>
-                <div
-                  className={`font-mono font-semibold ${
-                    data?.technicals.momentum_60d &&
-                    data.technicals.momentum_60d > 0
-                      ? "text-emerald-400"
-                      : "text-rose-400"
-                  }`}
+          {data?.ai_analysis && (
+            <Box
+              sx={{
+                background: "linear-gradient(135deg, rgba(49,46,129,0.25) 0%, rgba(88,28,135,0.25) 100%)",
+                border: "1px solid rgba(99,102,241,0.2)",
+                borderRadius: 3,
+                p: 3,
+                mb: 4,
+                position: "relative",
+                overflow: "hidden",
+                boxShadow: "0 4px 32px rgba(99,102,241,0.06)",
+              }}
+            >
+              <Box
+                sx={{
+                  position: "absolute",
+                  top: 0,
+                  right: 0,
+                  width: 128,
+                  height: 128,
+                  bgcolor: "rgba(99,102,241,0.1)",
+                  borderRadius: "50%",
+                  filter: "blur(48px)",
+                  mr: -8,
+                  mt: -8,
+                  pointerEvents: "none",
+                }}
+              />
+
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}>
+                <Typography component="span" sx={{ fontSize: "1.2rem" }}>🤖</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#c7d2fe" }}>
+                  AI 智能预测 (实验性)
+                </Typography>
+                <Chip
+                  label="Alpha"
+                  size="small"
+                  sx={{
+                    fontSize: "0.625rem",
+                    height: 20,
+                    bgcolor: "rgba(99,102,241,0.2)",
+                    color: "#a5b4fc",
+                    border: "1px solid rgba(99,102,241,0.3)",
+                  }}
+                />
+              </Box>
+
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 3 }}>
+                <Box
+                  sx={{
+                    bgcolor: "rgba(15,23,42,0.6)",
+                    borderRadius: 2,
+                    p: 2.5,
+                    border: "1px solid rgba(99,102,241,0.1)",
+                    backdropFilter: "blur(8px)",
+                  }}
                 >
-                  {data?.technicals.momentum_60d.toFixed(1)}%
-                </div>
-              </div>
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
-                <div className="text-xs text-slate-500 uppercase mb-1">
-                  年化波动率
-                </div>
-                <div className="font-mono font-semibold text-slate-200">
-                  {data?.technicals.volatility.toFixed(1)}%
-                </div>
-              </div>
-              <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
-                <div className="text-xs text-slate-500 uppercase mb-1">
-                  ATR (波动幅度)
-                </div>
-                <div className="font-mono font-semibold text-slate-200">
-                  ${data?.technicals.atr.toFixed(2)}
-                </div>
-              </div>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                    <Box sx={{ width: 3, height: 16, bgcolor: "#818cf8", borderRadius: "2px" }} />
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      历史形态匹配 (Pattern Matching)
+                    </Typography>
+                  </Box>
 
-              {/* New Technicals */}
-              {data?.technicals.rsi !== undefined && (
-                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
-                  <div className="text-xs text-slate-500 uppercase mb-1">
-                    RSI (14)
-                  </div>
-                  <div
-                    className={`font-mono font-semibold ${
-                      data.technicals.rsi > 70
-                        ? "text-rose-400"
-                        : data.technicals.rsi < 30
-                        ? "text-emerald-400"
-                        : "text-slate-200"
-                    }`}
-                  >
-                    {data.technicals.rsi.toFixed(1)}
-                  </div>
-                </div>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>相似历史片段</Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)" }}
+                      >
+                        {data.ai_analysis.pattern_match.similar_patterns_count} 组
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>历史胜率</Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontFamily: "var(--font-geist-mono, monospace)",
+                          fontWeight: 700,
+                          color:
+                            data.ai_analysis.pattern_match.win_rate >= 0.6
+                              ? "success.main"
+                              : "text.primary",
+                        }}
+                      >
+                        {(data.ai_analysis.pattern_match.win_rate * 100).toFixed(0)}%
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>平均期望收益 (20d)</Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontFamily: "var(--font-geist-mono, monospace)",
+                          fontWeight: 700,
+                          color:
+                            data.ai_analysis.pattern_match.avg_return > 0
+                              ? "success.main"
+                              : "error.main",
+                        }}
+                      >
+                        {(data.ai_analysis.pattern_match.avg_return * 100).toFixed(1)}%
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        pt: 1.5,
+                        borderTop: "1px solid rgba(99,102,241,0.1)",
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "rgba(165,180,252,0.8)", fontStyle: "italic" }}
+                      >
+                        &ldquo;{data.ai_analysis.pattern_match.projection}&rdquo;
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Box
+                  sx={{
+                    bgcolor: "rgba(15,23,42,0.6)",
+                    borderRadius: 2,
+                    p: 2.5,
+                    border: "1px solid rgba(99,102,241,0.1)",
+                    backdropFilter: "blur(8px)",
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                    <Box sx={{ width: 3, height: 16, bgcolor: "#c084fc", borderRadius: "2px" }} />
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      趋势线性回归 (Linear Trend)
+                    </Typography>
+                  </Box>
+
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>当前价格</Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)" }}
+                      >
+                        ${data.ai_analysis.trend_prediction.current_price.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>5日理论目标</Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontFamily: "var(--font-geist-mono, monospace)",
+                          fontWeight: 700,
+                          color: "#d8b4fe",
+                        }}
+                      >
+                        ${data.ai_analysis.trend_prediction.target_price_5d.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>拟合优度 (R²)</Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)" }}
+                      >
+                        {data.ai_analysis.trend_prediction.r_squared.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        pt: 1.5,
+                        borderTop: "1px solid rgba(168,85,247,0.1)",
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "rgba(216,180,254,0.8)", fontStyle: "italic" }}
+                      >
+                        &ldquo;{data.ai_analysis.trend_prediction.description}&rdquo;
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
+          )}
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", lg: "2fr 1fr" },
+              gap: 4,
+            }}
+          >
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {data?.chart_base64 && (
+                <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        mb: 3,
+                      }}
+                    >
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        📊 技术分析图表
+                      </Typography>
+                      <Box sx={{ display: "flex", gap: 3 }}>
+                        {[
+                          { color: "#22c55e", label: "入场" },
+                          { color: "#ef4444", label: "止损" },
+                          { color: "#3b82f6", label: "止盈" },
+                        ].map(({ color, label }) => (
+                          <Box
+                            key={label}
+                            sx={{ display: "flex", alignItems: "center", gap: 0.75 }}
+                          >
+                            <Box
+                              sx={{
+                                width: 12,
+                                height: 2,
+                                bgcolor: color,
+                                borderRadius: "1px",
+                              }}
+                            />
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: "text.secondary",
+                                fontFamily: "var(--font-geist-mono, monospace)",
+                              }}
+                            >
+                              {label}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    </Box>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- base64 data URL, next/image not applicable */}
+                    <img
+                      src={`data:image/png;base64,${data.chart_base64}`}
+                      alt={`${data.symbol} 蜡烛图`}
+                      style={{ width: "100%", borderRadius: "8px" }}
+                    />
+                  </CardContent>
+                </Card>
               )}
-              {data?.technicals.macd_hist !== undefined && (
-                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
-                  <div className="text-xs text-slate-500 uppercase mb-1">
-                    MACD Hist
-                  </div>
-                  <div
-                    className={`font-mono font-semibold ${
-                      data.technicals.macd_hist > 0
-                        ? "text-emerald-400"
-                        : "text-rose-400"
-                    }`}
+
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>
+                    📉 技术指标详情
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr 1fr", md: "1fr 1fr 1fr" },
+                      gap: 2,
+                    }}
                   >
-                    {data.technicals.macd_hist.toFixed(2)}
-                  </div>
-                </div>
-              )}
-              {data?.technicals.bb_upper !== undefined &&
-                data?.technicals.bb_lower !== undefined && (
-                  <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
-                    <div className="text-xs text-slate-500 uppercase mb-1">
-                      Bollinger (Width)
-                    </div>
-                    <div className="font-mono font-semibold text-slate-200">
-                      {(
-                        ((data.technicals.bb_upper - data.technicals.bb_lower) /
-                          data.current_price) *
-                        100
-                      ).toFixed(1)}
-                      %
-                    </div>
-                  </div>
-                )}
-            </div>
-          </div>
-        </div>
+                    <Box
+                      sx={{
+                        bgcolor: "action.hover",
+                        borderRadius: 2,
+                        p: 2,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.disabled", textTransform: "uppercase", display: "block", mb: 0.5 }}
+                      >
+                        MA20 (短期趋势)
+                      </Typography>
+                      <Typography
+                        variant="body1"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 600 }}
+                      >
+                        ${data?.technicals.ma20.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        bgcolor: "action.hover",
+                        borderRadius: 2,
+                        p: 2,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.disabled", textTransform: "uppercase", display: "block", mb: 0.5 }}
+                      >
+                        MA50 (中期趋势)
+                      </Typography>
+                      <Typography
+                        variant="body1"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 600 }}
+                      >
+                        ${data?.technicals.ma50.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        bgcolor: "action.hover",
+                        borderRadius: 2,
+                        p: 2,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.disabled", textTransform: "uppercase", display: "block", mb: 0.5 }}
+                      >
+                        MA200 (长期趋势)
+                      </Typography>
+                      <Typography
+                        variant="body1"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 600 }}
+                      >
+                        ${data?.technicals.ma200.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        bgcolor: "action.hover",
+                        borderRadius: 2,
+                        p: 2,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.disabled", textTransform: "uppercase", display: "block", mb: 0.5 }}
+                      >
+                        60日动量
+                      </Typography>
+                      <Typography
+                        variant="body1"
+                        sx={{
+                          fontFamily: "var(--font-geist-mono, monospace)",
+                          fontWeight: 600,
+                          color:
+                            data?.technicals.momentum_60d && data.technicals.momentum_60d > 0
+                              ? "success.main"
+                              : "error.main",
+                        }}
+                      >
+                        {data?.technicals.momentum_60d.toFixed(1)}%
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        bgcolor: "action.hover",
+                        borderRadius: 2,
+                        p: 2,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.disabled", textTransform: "uppercase", display: "block", mb: 0.5 }}
+                      >
+                        年化波动率
+                      </Typography>
+                      <Typography
+                        variant="body1"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 600 }}
+                      >
+                        {data?.technicals.volatility.toFixed(1)}%
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        bgcolor: "action.hover",
+                        borderRadius: 2,
+                        p: 2,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.disabled", textTransform: "uppercase", display: "block", mb: 0.5 }}
+                      >
+                        ATR (波动幅度)
+                      </Typography>
+                      <Typography
+                        variant="body1"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 600 }}
+                      >
+                        ${data?.technicals.atr.toFixed(2)}
+                      </Typography>
+                    </Box>
 
-        {/* Sidebar: Trading Plan */}
-        <div className="space-y-6">
-          <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-            <div className="flex items-center gap-2 mb-4 text-emerald-400">
-              <span className="text-xl">📈</span>
-              <h3 className="font-bold">入场计划 (Entry)</h3>
-            </div>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/30">
-                <span className="text-sm text-slate-400">
-                  {data?.entry_levels.aggressive_label}
-                </span>
-                <span className="font-mono font-bold text-white">
-                  ${data?.entry_levels.aggressive.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-emerald-900/20 rounded-lg border border-emerald-500/20">
-                <div className="flex flex-col">
-                  <span className="text-sm text-emerald-200 font-medium">
-                    ✨ {data?.entry_levels.moderate_label}
-                  </span>
-                  <span className="text-[10px] text-emerald-400/70">
-                    推荐挂单价位
-                  </span>
-                </div>
-                <span className="font-mono font-bold text-emerald-400">
-                  ${data?.entry_levels.moderate.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/30">
-                <span className="text-sm text-slate-400">
-                  {data?.entry_levels.conservative_label}
-                </span>
-                <span className="font-mono font-bold text-white">
-                  ${data?.entry_levels.conservative.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </div>
+                    {data?.technicals.rsi !== undefined && (
+                      <Box
+                        sx={{
+                          bgcolor: "action.hover",
+                          borderRadius: 2,
+                          p: 2,
+                          border: "1px solid",
+                          borderColor: "divider",
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.disabled", textTransform: "uppercase", display: "block", mb: 0.5 }}
+                        >
+                          RSI (14)
+                        </Typography>
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            fontFamily: "var(--font-geist-mono, monospace)",
+                            fontWeight: 600,
+                            color:
+                              data.technicals.rsi > 70
+                                ? "error.main"
+                                : data.technicals.rsi < 30
+                                ? "success.main"
+                                : "text.primary",
+                          }}
+                        >
+                          {data.technicals.rsi.toFixed(1)}
+                        </Typography>
+                      </Box>
+                    )}
 
-          <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-            <div className="flex items-center gap-2 mb-4 text-rose-400">
-              <span className="text-xl">🛑</span>
-              <h3 className="font-bold">风控止损 (Stop Loss)</h3>
-            </div>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/30">
-                <span className="text-sm text-slate-400">
-                  {data?.stop_levels.tight_label}
-                </span>
-                <span className="font-mono font-bold text-white">
-                  ${data?.stop_levels.tight.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-rose-900/10 rounded-lg border border-rose-500/20">
-                <span className="text-sm text-rose-200">
-                  {data?.stop_levels.normal_label}
-                </span>
-                <span className="font-mono font-bold text-rose-400">
-                  ${data?.stop_levels.normal.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/30">
-                <span className="text-sm text-slate-400">
-                  {data?.stop_levels.loose_label}
-                </span>
-                <span className="font-mono font-bold text-white">
-                  ${data?.stop_levels.loose.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </div>
+                    {data?.technicals.macd_hist !== undefined && (
+                      <Box
+                        sx={{
+                          bgcolor: "action.hover",
+                          borderRadius: 2,
+                          p: 2,
+                          border: "1px solid",
+                          borderColor: "divider",
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.disabled", textTransform: "uppercase", display: "block", mb: 0.5 }}
+                        >
+                          MACD Hist
+                        </Typography>
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            fontFamily: "var(--font-geist-mono, monospace)",
+                            fontWeight: 600,
+                            color: data.technicals.macd_hist > 0 ? "success.main" : "error.main",
+                          }}
+                        >
+                          {data.technicals.macd_hist.toFixed(2)}
+                        </Typography>
+                      </Box>
+                    )}
 
-          <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800">
-            <div className="flex items-center gap-2 mb-4 text-sky-400">
-              <span className="text-xl">🎯</span>
-              <h3 className="font-bold">获利目标 (Take Profit)</h3>
-            </div>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-sky-900/10 rounded-lg border border-sky-500/20">
-                <span className="text-sm text-sky-200">
-                  {data?.tp_levels.tp1_label}
-                </span>
-                <span className="font-mono font-bold text-sky-400">
-                  ${data?.tp_levels.tp1.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/30">
-                <span className="text-sm text-slate-400">
-                  {data?.tp_levels.tp2_label}
-                </span>
-                <span className="font-mono font-bold text-white">
-                  ${data?.tp_levels.tp2.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/30">
-                <span className="text-sm text-slate-400">
-                  {data?.tp_levels.tp3_label}
-                </span>
-                <span className="font-mono font-bold text-white">
-                  ${data?.tp_levels.tp3.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+                    {data?.technicals.bb_upper !== undefined &&
+                      data?.technicals.bb_lower !== undefined && (
+                        <Box
+                          sx={{
+                            bgcolor: "action.hover",
+                            borderRadius: 2,
+                            p: 2,
+                            border: "1px solid",
+                            borderColor: "divider",
+                          }}
+                        >
+                          <Typography
+                            variant="caption"
+                            sx={{ color: "text.disabled", textTransform: "uppercase", display: "block", mb: 0.5 }}
+                          >
+                            Bollinger (Width)
+                          </Typography>
+                          <Typography
+                            variant="body1"
+                            sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 600 }}
+                          >
+                            {(
+                              ((data.technicals.bb_upper - data.technicals.bb_lower) /
+                                data.current_price) *
+                              100
+                            ).toFixed(1)}
+                            %
+                          </Typography>
+                        </Box>
+                      )}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
+
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}>
+                    <Typography component="span" sx={{ fontSize: "1.2rem" }}>📈</Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "success.main" }}>
+                      入场计划 (Entry)
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        p: 1.5,
+                        bgcolor: "action.hover",
+                        borderRadius: 1.5,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                        {data?.entry_levels.aggressive_label}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 700 }}
+                      >
+                        ${data?.entry_levels.aggressive.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        p: 1.5,
+                        bgcolor: "rgba(16,185,129,0.08)",
+                        borderRadius: 1.5,
+                        border: "1px solid rgba(16,185,129,0.2)",
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="body2" sx={{ color: "#6ee7b7", fontWeight: 500 }}>
+                          ✨ {data?.entry_levels.moderate_label}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: "rgba(110,231,183,0.6)" }}>
+                          推荐挂单价位
+                        </Typography>
+                      </Box>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontFamily: "var(--font-geist-mono, monospace)",
+                          fontWeight: 700,
+                          color: "success.main",
+                        }}
+                      >
+                        ${data?.entry_levels.moderate.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        p: 1.5,
+                        bgcolor: "action.hover",
+                        borderRadius: 1.5,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                        {data?.entry_levels.conservative_label}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 700 }}
+                      >
+                        ${data?.entry_levels.conservative.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}>
+                    <Typography component="span" sx={{ fontSize: "1.2rem" }}>🛑</Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "error.main" }}>
+                      风控止损 (Stop Loss)
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        p: 1.5,
+                        bgcolor: "action.hover",
+                        borderRadius: 1.5,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                        {data?.stop_levels.tight_label}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 700 }}
+                      >
+                        ${data?.stop_levels.tight.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        p: 1.5,
+                        bgcolor: "rgba(239,68,68,0.06)",
+                        borderRadius: 1.5,
+                        border: "1px solid rgba(239,68,68,0.2)",
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ color: "#fca5a5" }}>
+                        {data?.stop_levels.normal_label}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontFamily: "var(--font-geist-mono, monospace)",
+                          fontWeight: 700,
+                          color: "error.main",
+                        }}
+                      >
+                        ${data?.stop_levels.normal.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        p: 1.5,
+                        bgcolor: "action.hover",
+                        borderRadius: 1.5,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                        {data?.stop_levels.loose_label}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 700 }}
+                      >
+                        ${data?.stop_levels.loose.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}>
+                    <Typography component="span" sx={{ fontSize: "1.2rem" }}>🎯</Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "primary.main" }}>
+                      获利目标 (Take Profit)
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        p: 1.5,
+                        bgcolor: "rgba(14,165,233,0.06)",
+                        borderRadius: 1.5,
+                        border: "1px solid rgba(14,165,233,0.2)",
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ color: "#7dd3fc" }}>
+                        {data?.tp_levels.tp1_label}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontFamily: "var(--font-geist-mono, monospace)",
+                          fontWeight: 700,
+                          color: "primary.main",
+                        }}
+                      >
+                        ${data?.tp_levels.tp1.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        p: 1.5,
+                        bgcolor: "action.hover",
+                        borderRadius: 1.5,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                        {data?.tp_levels.tp2_label}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 700 }}
+                      >
+                        ${data?.tp_levels.tp2.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        p: 1.5,
+                        bgcolor: "action.hover",
+                        borderRadius: 1.5,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                        {data?.tp_levels.tp3_label}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: "var(--font-geist-mono, monospace)", fontWeight: 700 }}
+                      >
+                        ${data?.tp_levels.tp3.toFixed(2)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
   );
 }
