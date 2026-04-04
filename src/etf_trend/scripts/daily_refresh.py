@@ -107,7 +107,9 @@ def run_refresh(config_path: str, candidate_limit: int) -> None:
 
     # 2) Build candidate pool from Russell 3000 (fallback to configured pool).
     russell_3000_symbols = read_symbol_file(cfg.universe.russell_3000_symbols_file)
-    source_symbols = russell_3000_symbols or cfg.universe.dynamic_stock_symbols or cfg.universe.stock_symbols
+    source_symbols = (
+        russell_3000_symbols or cfg.universe.dynamic_stock_symbols or cfg.universe.stock_symbols
+    )
     source_symbols = list(dict.fromkeys(source_symbols))
 
     if candidate_limit > 0:
@@ -159,7 +161,9 @@ def run_refresh(config_path: str, candidate_limit: int) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Daily refresh stock universe + fundamentals cache")
+    parser = argparse.ArgumentParser(
+        description="Daily refresh stock universe + fundamentals cache"
+    )
     parser.add_argument(
         "--config",
         default=str(DEFAULT_CONFIG),

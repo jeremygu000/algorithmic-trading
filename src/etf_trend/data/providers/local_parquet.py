@@ -55,8 +55,7 @@ def load_local_daily_adjclose(
 
     if not data_dir.exists():
         raise FileNotFoundError(
-            f"本地数据目录不存在: {data_dir}\n"
-            "请先使用 yahoo-finance-data 项目下载数据。"
+            f"本地数据目录不存在: {data_dir}\n" "请先使用 yahoo-finance-data 项目下载数据。"
         )
 
     series_dict: dict[str, pd.Series] = {}

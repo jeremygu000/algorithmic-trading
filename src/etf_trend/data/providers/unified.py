@@ -65,9 +65,7 @@ def load_prices_with_fallback(
 
     if local_available:
         try:
-            local_df = load_local_daily_adjclose(
-                local_available, start, end, data_dir=data_dir
-            )
+            local_df = load_local_daily_adjclose(local_available, start, end, data_dir=data_dir)
         except FileNotFoundError:
             pass
 
@@ -76,9 +74,7 @@ def load_prices_with_fallback(
 
     if tiingo_api_key:
         try:
-            logger.info(
-                f"尝试从 Tiingo 补全 {len(local_missing)} 个缺失 ticker: {local_missing}"
-            )
+            logger.info(f"尝试从 Tiingo 补全 {len(local_missing)} 个缺失 ticker: {local_missing}")
             tiingo_df = load_tiingo_daily_adjclose(
                 local_missing,
                 start,

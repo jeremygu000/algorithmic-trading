@@ -13,7 +13,7 @@ $ uv run uvicorn etf_trend.api.main:app --reload
 
 API 文档：
 ---------
-启动后访问 http://localhost:8000/docs 查看 Swagger 文档
+启动后访问 http://localhost:8300/docs 查看 Swagger 文档
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 # 服务端绘图使用非交互后端，避免线程环境触发 GUI backend 错误
 matplotlib.use("Agg")
 import mplfinance as mpf
+
 # 配置中文字体 (macOS)
 matplotlib.rcParams["font.sans-serif"] = ["PingFang SC", "Arial Unicode MS", "SimHei"]
 matplotlib.rcParams["axes.unicode_minus"] = False
@@ -120,6 +121,7 @@ def _filter_stock_pool_by_size(
 class WatchlistSymbolPayload(BaseModel):
     symbol: str = Field(min_length=1, max_length=15)
 
+
 # =============================================================================
 # FastAPI 应用
 # =============================================================================
@@ -135,7 +137,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3200", "http://127.0.0.1:3200"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

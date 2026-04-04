@@ -29,7 +29,9 @@ class StockUniverseBuilder:
     def base_candidates(self) -> list[str]:
         if self.cfg.universe.stock_universe_mode == "dynamic":
             file_symbols = read_symbol_file(self.cfg.universe.dynamic_stock_symbols_file)
-            config_symbols = self.cfg.universe.dynamic_stock_symbols or self.cfg.universe.stock_symbols
+            config_symbols = (
+                self.cfg.universe.dynamic_stock_symbols or self.cfg.universe.stock_symbols
+            )
             symbols = file_symbols + config_symbols
         else:
             symbols = self.cfg.universe.stock_symbols

@@ -1,5 +1,16 @@
 # ETF Trend Following Backtester
 
+<div align="center">
+
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED.svg)](docker-compose.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/jeremygu000/algorithmic-trading/ci.yml?label=CI)](https://github.com/jeremygu000/algorithmic-trading/actions)
+
+</div>
+
 基于动量和趋势过滤的 ETF 投资组合策略回测系统。
 
 ---
@@ -196,8 +207,8 @@ npm run dev
 
 这将同时启动：
 
-- 🚀 **API 服务**: http://localhost:8000
-- 💻 **Web 界面**: http://localhost:3000
+- 🚀 **API 服务**: http://localhost:8300
+- 💻 **Web 界面**: http://localhost:3200
 
 也可以单独运行：
 
@@ -290,7 +301,8 @@ uv run black src/ tests/
 
 ### 数据源
 
-| 用途     | 数据源        | 说明                |
-| -------- | ------------- | ------------------- |
-| ETF/个股 | Yahoo Finance | 免费，无需 API 密钥 |
-| 备用     | Tiingo        | 需 API 密钥，有限流 |
+| 用途     | 数据源            | 说明                           |
+| -------- | ----------------- | ------------------------------ |
+| ETF/个股 | 本地 Parquet 文件 | ~/.market_data/parquet/ 目录    |
+| 备用     | Tiingo            | 需 API 密钥，有限流           |
+| 基本面   | Yahoo Finance     | PE/PEG/ROE 等基本面数据       |

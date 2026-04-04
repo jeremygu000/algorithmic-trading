@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://localhost:8300";
 
 interface StockData {
   symbol: string;
@@ -90,15 +91,26 @@ export default function StockPage() {
   useEffect(() => {
     if (!symbol) return;
 
-    setLoading(true);
+    let cancelled = false;
+
     fetch(`${API_BASE}/api/stock/${symbol}`)
       .then((res) => {
         if (!res.ok) throw new Error(`股票 ${symbol} 未找到`);
         return res.json();
       })
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .then((json) => {
+        if (!cancelled) setData(json);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [symbol]);
 
   const recommendationStyle: Record<string, string> = {
@@ -124,12 +136,12 @@ export default function StockPage() {
         <div className="bg-rose-950/30 border border-rose-900/50 rounded-2xl p-8 text-center">
           <h2 className="text-xl font-semibold text-rose-400 mb-2">查询失败</h2>
           <p className="text-slate-400 mb-6">{error}</p>
-          <a
+          <Link
             href="/"
             className="inline-block px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition-colors"
           >
             返回首页
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -279,7 +291,7 @@ export default function StockPage() {
                 </span>
               </div>
               <div className="pt-2 text-xs text-indigo-300/80 italic border-t border-indigo-500/10">
-                "{data.ai_analysis.pattern_match.projection}"
+                &ldquo;{data.ai_analysis.pattern_match.projection}&rdquo;
               </div>
             </div>
           </div>
@@ -314,7 +326,7 @@ export default function StockPage() {
                 </span>
               </div>
               <div className="pt-2 text-xs text-purple-300/80 italic border-t border-purple-500/10">
-                "{data.ai_analysis.trend_prediction.description}"
+                &ldquo;{data.ai_analysis.trend_prediction.description}&rdquo;
               </div>
             </div>
           </div>
@@ -346,6 +358,7 @@ export default function StockPage() {
                   </div>
                 </div>
               </div>
+              {/* eslint-disable-next-line @next/next/no-img-element -- base64 data URL, next/image not applicable */}
               <img
                 src={`data:image/png;base64,${data.chart_base64}`}
                 alt={`${data.symbol} 蜡烛图`}

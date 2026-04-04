@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://localhost:8300";
 type PickSizeFilter = "all" | "large" | "small";
 
 interface TradePlan {

@@ -1,6 +1,6 @@
 # 个股分析 API 流程详解 (Stock Analysis API Flow)
 
-本文档详细解析 `http://localhost:3000/stock/{stockId}` 页面背后的完整数据流和分析逻辑。该页面对应从前端请求到后端深度分析的端到端过程。
+本文档详细解析 `http://localhost:3200/stock/{stockId}` 页面背后的完整数据流和分析逻辑。该页面对应从前端请求到后端深度分析的端到端过程。
 
 ## 1. 总体交互流程 (End-to-End Flow)
 
@@ -32,7 +32,7 @@ sequenceDiagram
 
 - **页面路径**: `src/web/src/app/stock/[symbol]/page.tsx`
 - **触发机制**: 页面加载时 (`useEffect`) 自动触发。
-- **请求地址**: `http://localhost:8000/api/stock/{symbol}`
+- **请求地址**: `http://localhost:8300/api/stock/{symbol}`
 - **主要职责**:
   1.  **加载状态**: 显示 "正在分析..." 加载动画。
   2.  **错误处理**: 如果后端返回 404 或 500，显示错误提示。
