@@ -8,7 +8,6 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
-import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import LinearProgress from "@mui/material/LinearProgress";
 import ToggleButton from "@mui/material/ToggleButton";
@@ -155,76 +154,80 @@ export default function PicksPage() {
   /* ── SSE streaming ──────────────────────────────────────── */
 
   useEffect(() => {
-    setPicks([]);
-    setMetadata(null);
-    setDoneMessage(null);
-    setError(null);
-    setProgress(null);
-    setProgressPercent(0);
-    setStreaming(true);
+    const startStream = () => {
+      setPicks([]);
+      setMetadata(null);
+      setDoneMessage(null);
+      setError(null);
+      setProgress(null);
+      setProgressPercent(0);
+      setStreaming(true);
 
-    const url = `${API_BASE}/api/picks/stream?size=${sizeFilter}`;
-    const es = new EventSource(url);
-    eventSourceRef.current = es;
+      const url = `${API_BASE}/api/picks/stream?size=${sizeFilter}`;
+      const es = new EventSource(url);
+      eventSourceRef.current = es;
 
-    es.addEventListener("progress", (ev) => {
-      const info: ProgressInfo = JSON.parse(ev.data);
-      setProgress(info);
-      const base = STAGE_PROGRESS[info.stage] ?? 0;
-      if (info.current != null && info.total != null && info.total > 0) {
-        const stageRange = info.stage === "ai" ? 20 : 10;
-        setProgressPercent(base + Math.round((info.current / info.total) * stageRange));
-      } else {
-        setProgressPercent(base);
-      }
-    });
+      es.addEventListener("progress", (ev) => {
+        const info: ProgressInfo = JSON.parse(ev.data);
+        setProgress(info);
+        const base = STAGE_PROGRESS[info.stage] ?? 0;
+        if (info.current != null && info.total != null && info.total > 0) {
+          const stageRange = info.stage === "ai" ? 20 : 10;
+          setProgressPercent(base + Math.round((info.current / info.total) * stageRange));
+        } else {
+          setProgressPercent(base);
+        }
+      });
 
-    es.addEventListener("metadata", (ev) => {
-      const meta: PicksMetadata = JSON.parse(ev.data);
-      setMetadata(meta);
-    });
+      es.addEventListener("metadata", (ev) => {
+        const meta: PicksMetadata = JSON.parse(ev.data);
+        setMetadata(meta);
+      });
 
-    es.addEventListener("pick", (ev) => {
-      const plan: TradePlan = JSON.parse(ev.data);
-      setPicks((prev) => [...prev, plan]);
-    });
+      es.addEventListener("pick", (ev) => {
+        const plan: TradePlan = JSON.parse(ev.data);
+        setPicks((prev) => [...prev, plan]);
+      });
 
-    es.addEventListener("done", (ev) => {
-      const info = JSON.parse(ev.data) as { total: number; message: string };
-      setDoneMessage(info.message);
-      setProgressPercent(100);
-      setStreaming(false);
-      es.close();
-    });
+      es.addEventListener("done", (ev) => {
+        const info = JSON.parse(ev.data) as { total: number; message: string };
+        setDoneMessage(info.message);
+        setProgressPercent(100);
+        setStreaming(false);
+        es.close();
+      });
 
-    es.addEventListener("error", (ev) => {
-      /* SSE spec fires a generic Event on connection errors,
-         but our backend sends a named "error" event with JSON data. */
-      const me = ev as MessageEvent;
-      if (me.data) {
-        try {
-          const info = JSON.parse(me.data) as { detail: string };
-          setError(info.detail);
-        } catch {
+      es.addEventListener("error", (ev) => {
+        /* SSE spec fires a generic Event on connection errors,
+           but our backend sends a named "error" event with JSON data. */
+        const me = ev as MessageEvent;
+        if (me.data) {
+          try {
+            const info = JSON.parse(me.data) as { detail: string };
+            setError(info.detail);
+          } catch {
+            setError("连接异常，请稍后重试");
+          }
+        } else {
           setError("连接异常，请稍后重试");
         }
-      } else {
-        setError("连接异常，请稍后重试");
-      }
-      setStreaming(false);
-      es.close();
-    });
+        setStreaming(false);
+        es.close();
+      });
 
-    es.onerror = () => {
-      /* Connection-level error (e.g. server down, CORS). */
-      if (es.readyState === EventSource.CLOSED) return;
-      setError("连接服务器失败，请检查后端是否运行");
-      setStreaming(false);
-      es.close();
+      es.onerror = () => {
+        /* Connection-level error (e.g. server down, CORS). */
+        if (es.readyState === EventSource.CLOSED) return;
+        setError("连接服务器失败，请检查后端是否运行");
+        setStreaming(false);
+        es.close();
+      };
     };
 
+    startStream();
+
     return () => {
-      es.close();
+      eventSourceRef.current?.close();
       eventSourceRef.current = null;
     };
   }, [sizeFilter]);
