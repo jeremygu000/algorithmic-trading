@@ -2,7 +2,7 @@
 本地 Parquet 基本面数据读取模块
 ================================
 
-从 ~/.market_data/parquet/ 读取 yahoo-finance-data 项目维护的基本面数据。
+从 ~/.market_data/parquet/fundamentals/ 读取 yahoo-finance-data 项目维护的基本面数据。
 文件命名约定: {TICKER}_fundamentals.parquet
 Schema: DatetimeIndex(fetched_at), 42 columns (yfinance 原始字段名)
 
@@ -21,6 +21,8 @@ import numpy as np
 import pandas as pd
 
 from etf_trend.data.providers.local_parquet import DEFAULT_DATA_DIR
+
+DEFAULT_FUNDAMENTALS_DIR = DEFAULT_DATA_DIR / "fundamentals"
 
 logger = logging.getLogger(__name__)
 
@@ -44,22 +46,9 @@ _FIELD_MAP: dict[str, str] = {
 
 def load_local_fundamentals(
     symbols: list[str],
-    data_dir: str | Path = DEFAULT_DATA_DIR,
+    data_dir: str | Path = DEFAULT_FUNDAMENTALS_DIR,
     staleness_days: int = STALENESS_THRESHOLD_DAYS,
 ) -> tuple[dict[str, dict], list[str]]:
-    """
-    从本地 parquet 文件加载基本面数据。
-
-    Args:
-        symbols: 股票代码列表
-        data_dir: parquet 文件目录，默认 ~/.market_data/parquet
-        staleness_days: 新鲜度阈值（天），超过则视为过期
-
-    Returns:
-        (loaded, missing):
-            loaded: {symbol: FundamentalData dict} — 成功加载的数据
-            missing: [symbol, ...] — 本地缺失或过期的 ticker 列表
-    """
     data_dir = Path(data_dir)
     loaded: dict[str, dict] = {}
     missing: list[str] = []
