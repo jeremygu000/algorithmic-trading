@@ -69,11 +69,12 @@ def picks_size_prices():
     return pd.DataFrame({"AAPL": aapl, "JNJ": jnj, "SPY": spy}, index=dates)
 
 
+@patch("etf_trend.api.main._build_ohlcv_bars", return_value=[])
 @patch("etf_trend.api.main.load_prices_with_fallback")
 @patch("etf_trend.api.main.load_yahoo_fundamentals")
 @patch("etf_trend.api.main.RegimeEngine")
 def test_analyze_stock_endpoint(
-    MockRegimeEngine, mock_load_fund, mock_load_prices, mock_prices, mock_fundamentals
+    MockRegimeEngine, mock_load_fund, mock_load_prices, _mock_ohlcv, mock_prices, mock_fundamentals
 ):
     """
     测试 /api/stock/{symbol} 端点
