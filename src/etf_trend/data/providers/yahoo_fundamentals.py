@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 from typing import TypedDict
 import json
 
@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 # yfinance 内部对同一 IP 有频率限制，过高并发反而触发 429。
 # 8 线程是经验值：比顺序快 5-6 倍，又不容易被限流。
 _YAHOO_MAX_WORKERS = 8
+
+# 单个 ticker 的 yfinance API 超时秒数
+_YAHOO_TIMEOUT_SECONDS = 15
 
 
 class FundamentalData(TypedDict):
@@ -133,15 +136,21 @@ def load_yahoo_fundamentals(
     if not missing:
         return result
 
-    print(f"  正在从 Yahoo Finance 并行获取 {len(missing)} 个资产的基本面数据...")
+    logger.info(f"正在从 Yahoo Finance 并行获取 {len(missing)} 个资产的基本面数据...")
 
     with ThreadPoolExecutor(max_workers=min(_YAHOO_MAX_WORKERS, len(missing))) as pool:
         futures = {
             pool.submit(_fetch_single_fundamental, sym, cache_enabled, cache_dir): sym
             for sym in missing
         }
-        for future in as_completed(futures):
-            sym, fund_data = future.result()
-            result[sym] = fund_data
+        for future in as_completed(futures, timeout=_YAHOO_TIMEOUT_SECONDS * len(missing)):
+            sym = futures[future]
+            try:
+                _, fund_data = future.result(timeout=_YAHOO_TIMEOUT_SECONDS)
+                result[sym] = fund_data
+            except TimeoutError:
+                logger.warning(f"获取 {sym} 基本面数据超时 ({_YAHOO_TIMEOUT_SECONDS}s)")
+            except Exception as e:
+                logger.warning(f"获取 {sym} 基本面数据失败: {e}")
 
     return result

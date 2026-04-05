@@ -42,7 +42,7 @@ const NAV_ITEMS = [
   { id: "/compare", label: "策略对比", Icon: CompareArrowsIcon },
   { id: "/trading", label: "交易中心", Icon: AccountBalanceWalletIcon },
   { id: "/portfolio", label: "投资组合", Icon: PieChartIcon },
-  { id: "/stock/AAPL", label: "股票分析", Icon: CandlestickChartIcon },
+  { id: "/stock", label: "股票分析", Icon: CandlestickChartIcon },
 ] as const;
 
 export default function Sidebar() {
@@ -65,7 +65,7 @@ export default function Sidebar() {
 
   const isActive = (path: string) => {
     if (path === "/") return pathname === "/";
-    if (path.startsWith("/stock/")) return pathname.startsWith("/stock/");
+    if (path === "/stock") return pathname === "/stock" || pathname.startsWith("/stock/");
     return pathname === path;
   };
 

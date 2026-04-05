@@ -12,8 +12,13 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import Chip from "@mui/material/Chip";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import HeroBanner from "@/components/HeroBanner";
 import KlineModal from "@/components/KlineModal";
+import StockAnalysisModal from "@/components/StockAnalysisModal";
+import CandlestickChartIcon from "@mui/icons-material/CandlestickChart";
+import AssessmentIcon from "@mui/icons-material/Assessment";
 import {
   BarChart,
   Bar,
@@ -573,6 +578,8 @@ function BeautyShoulderTab({ initialData }: { initialData?: BeautyShoulderData |
   const [tick, setTick] = useState(0);
   const [skipInitial] = useState(!!initialData);
   const [modalSymbol, setModalSymbol] = useState<{ symbol: string; name: string } | null>(null);
+  const [analysisSymbol, setAnalysisSymbol] = useState<{ symbol: string; name: string } | null>(null);
+  const [signalDays, setSignalDays] = useState<7 | 15 | 30>(7);
 
   const handleRetry = () => {
     setLoading(true);
@@ -614,9 +621,13 @@ function BeautyShoulderTab({ initialData }: { initialData?: BeautyShoulderData |
     );
   if (!data) return null;
 
-  const sorted = [...(data.patterns ?? [])].sort(
-    (a, b) => b.confidence - a.confidence
-  );
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - signalDays);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+  const sorted = [...(data.patterns ?? [])]
+    .filter((p) => p.signal_date >= cutoffStr)
+    .sort((a, b) => b.confidence - a.confidence);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -624,9 +635,42 @@ function BeautyShoulderTab({ initialData }: { initialData?: BeautyShoulderData |
         items={[
           { label: "扫描日期", value: data.date },
           { label: "扫描总数", value: String(data.total_scanned) },
-          { label: "命中数量", value: String(data.matched_count) },
+          { label: "命中数量", value: String(sorted.length) },
         ]}
       />
+
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <Typography variant="body2" sx={{ color: "text.secondary", fontWeight: 500 }}>
+          信号时效
+        </Typography>
+        <ToggleButtonGroup
+          value={signalDays}
+          exclusive
+          size="small"
+          onChange={(_e, v) => { if (v !== null) setSignalDays(v as 7 | 15 | 30); }}
+          sx={{
+            "& .MuiToggleButton-root": {
+              textTransform: "none",
+              px: 2,
+              py: 0.5,
+              fontSize: "0.8rem",
+              borderRadius: "8px !important",
+              borderColor: "divider",
+              color: "text.secondary",
+              "&.Mui-selected": {
+                bgcolor: "rgba(54,187,128,0.12)",
+                color: "#36bb80",
+                borderColor: "#36bb80",
+                fontWeight: 600,
+              },
+            },
+          }}
+        >
+          <ToggleButton value={7}>7 天</ToggleButton>
+          <ToggleButton value={15}>15 天</ToggleButton>
+          <ToggleButton value={30}>30 天</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
 
       {sorted.length > 0 ? (
         <Box
@@ -640,10 +684,8 @@ function BeautyShoulderTab({ initialData }: { initialData?: BeautyShoulderData |
             <Card
               key={`${p.symbol}-${p.signal_date}-${idx}`}
               variant="outlined"
-              onClick={() => setModalSymbol({ symbol: p.symbol, name: p.name })}
               sx={{
                 borderRadius: 3,
-                cursor: "pointer",
                 transition: "border-color 0.2s, box-shadow 0.2s",
                 "&:hover": {
                   borderColor: "#36bb80",
@@ -801,6 +843,43 @@ function BeautyShoulderTab({ initialData }: { initialData?: BeautyShoulderData |
                     ${p.ema20_at_signal.toFixed(2)}
                   </Typography>
                 </Box>
+
+                <Box sx={{ display: "flex", gap: 1.5, mt: 2 }}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<CandlestickChartIcon sx={{ fontSize: 16 }} />}
+                    onClick={() => setModalSymbol({ symbol: p.symbol, name: p.name })}
+                    sx={{
+                      flex: 1,
+                      borderRadius: 2,
+                      textTransform: "none",
+                      fontSize: "0.8rem",
+                      borderColor: "divider",
+                      color: "text.secondary",
+                      "&:hover": { borderColor: "#3b89ff", color: "#3b89ff" },
+                    }}
+                  >
+                    K线
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<AssessmentIcon sx={{ fontSize: 16 }} />}
+                    onClick={() => setAnalysisSymbol({ symbol: p.symbol, name: p.name })}
+                    sx={{
+                      flex: 1,
+                      borderRadius: 2,
+                      textTransform: "none",
+                      fontSize: "0.8rem",
+                      borderColor: "divider",
+                      color: "text.secondary",
+                      "&:hover": { borderColor: "#36bb80", color: "#36bb80" },
+                    }}
+                  >
+                    股票分析
+                  </Button>
+                </Box>
               </CardContent>
             </Card>
           ))}
@@ -818,6 +897,12 @@ function BeautyShoulderTab({ initialData }: { initialData?: BeautyShoulderData |
         symbol={modalSymbol?.symbol ?? ""}
         symbolName={modalSymbol?.name}
       />
+      <StockAnalysisModal
+        open={analysisSymbol !== null}
+        onClose={() => setAnalysisSymbol(null)}
+        symbol={analysisSymbol?.symbol ?? ""}
+        symbolName={analysisSymbol?.name}
+      />
     </Box>
   );
 }
@@ -828,6 +913,7 @@ function EarlyMoversTab() {
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const [modalSymbol, setModalSymbol] = useState<{ symbol: string; name: string } | null>(null);
+  const [analysisSymbol, setAnalysisSymbol] = useState<{ symbol: string; name: string } | null>(null);
 
   const handleRetry = () => {
     setLoading(true);
@@ -890,10 +976,8 @@ function EarlyMoversTab() {
             <Card
               key={`${s.symbol}-${s.window_end}-${idx}`}
               variant="outlined"
-              onClick={() => setModalSymbol({ symbol: s.symbol, name: s.name })}
               sx={{
                 borderRadius: 3,
-                cursor: "pointer",
                 transition: "border-color 0.2s, box-shadow 0.2s",
                 "&:hover": {
                   borderColor: "#36bb80",
@@ -1012,6 +1096,43 @@ function EarlyMoversTab() {
                     valueColor="#36bb80"
                   />
                 </Box>
+
+                <Box sx={{ display: "flex", gap: 1.5, mt: 2 }}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<CandlestickChartIcon sx={{ fontSize: 16 }} />}
+                    onClick={() => setModalSymbol({ symbol: s.symbol, name: s.name })}
+                    sx={{
+                      flex: 1,
+                      borderRadius: 2,
+                      textTransform: "none",
+                      fontSize: "0.8rem",
+                      borderColor: "divider",
+                      color: "text.secondary",
+                      "&:hover": { borderColor: "#3b89ff", color: "#3b89ff" },
+                    }}
+                  >
+                    K线
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<AssessmentIcon sx={{ fontSize: 16 }} />}
+                    onClick={() => setAnalysisSymbol({ symbol: s.symbol, name: s.name })}
+                    sx={{
+                      flex: 1,
+                      borderRadius: 2,
+                      textTransform: "none",
+                      fontSize: "0.8rem",
+                      borderColor: "divider",
+                      color: "text.secondary",
+                      "&:hover": { borderColor: "#36bb80", color: "#36bb80" },
+                    }}
+                  >
+                    股票分析
+                  </Button>
+                </Box>
               </CardContent>
             </Card>
           ))}
@@ -1028,6 +1149,12 @@ function EarlyMoversTab() {
         onClose={() => setModalSymbol(null)}
         symbol={modalSymbol?.symbol ?? ""}
         symbolName={modalSymbol?.name}
+      />
+      <StockAnalysisModal
+        open={analysisSymbol !== null}
+        onClose={() => setAnalysisSymbol(null)}
+        symbol={analysisSymbol?.symbol ?? ""}
+        symbolName={analysisSymbol?.name}
       />
     </Box>
   );

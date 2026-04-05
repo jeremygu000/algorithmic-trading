@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from etf_trend.data.providers.local_parquet import DEFAULT_DATA_DIR
@@ -103,6 +104,10 @@ def load_local_fundamentals(
             value = row.get(src_field)
             if pd.isna(value):
                 fund_data[dst_field] = None
+            elif isinstance(value, (np.integer,)):
+                fund_data[dst_field] = int(value)
+            elif isinstance(value, (np.floating,)):
+                fund_data[dst_field] = float(value)
             else:
                 fund_data[dst_field] = value
 

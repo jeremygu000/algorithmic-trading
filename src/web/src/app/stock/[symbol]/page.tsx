@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   createChart,
@@ -21,6 +21,10 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
+import Autocomplete from "@mui/material/Autocomplete";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import SearchIcon from "@mui/icons-material/Search";
 import HeroBanner from "@/components/HeroBanner";
 
 const API_BASE = "http://localhost:8300";
@@ -504,11 +508,27 @@ const recommendationChipSx: Record<string, object> = {
 
 export default function StockPage() {
   const params = useParams();
+  const router = useRouter();
   const symbol = (params.symbol as string)?.toUpperCase();
 
   const [data, setData] = useState<StockData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [symbolOptions, setSymbolOptions] = useState<string[]>([]);
+
+  const loadSymbols = useCallback(() => {
+    fetch(`${API_BASE}/api/symbols`)
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = (await res.json()) as { symbols: string[] };
+        setSymbolOptions(json.symbols || []);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadSymbols();
+  }, [loadSymbols]);
 
   useEffect(() => {
     if (!symbol) return;
@@ -582,6 +602,54 @@ export default function StockPage() {
       />
 
       <Box sx={{ maxWidth: 1100, mx: "auto", px: 4, py: 5 }}>
+          <Box sx={{ mb: 3 }}>
+            <Autocomplete
+              freeSolo
+              options={symbolOptions}
+              filterOptions={(options, { inputValue }) => {
+                const upper = inputValue.toUpperCase();
+                if (!upper) return options.slice(0, 20);
+                return options.filter((o) => o.startsWith(upper)).slice(0, 20);
+              }}
+              onChange={(_e, value) => {
+                if (value && typeof value === "string") {
+                  router.push(`/stock/${value.toUpperCase()}`);
+                }
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder="搜索股票代码 (如 NVDA, MSFT, TSLA ...)"
+                  variant="outlined"
+                  size="small"
+                  InputProps={{
+                    ...params.InputProps,
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ color: "text.disabled", fontSize: 18 }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{ maxWidth: 360 }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const input = (e.target as HTMLInputElement).value.trim().toUpperCase();
+                      if (input) {
+                        router.push(`/stock/${input}`);
+                      }
+                    }
+                  }}
+                />
+              )}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 2,
+                  fontSize: "0.9rem",
+                },
+              }}
+            />
+          </Box>
+
           <Box
             sx={{
               display: "flex",

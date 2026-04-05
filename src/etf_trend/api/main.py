@@ -308,8 +308,194 @@ async def get_market_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _compute_technicals(prices: pd.DataFrame, symbol: str) -> dict:
+    price_series = prices[symbol]
+    current_price = float(price_series.iloc[-1])
+    ma20 = float(price_series.rolling(20).mean().iloc[-1])
+    ma50 = float(price_series.rolling(50).mean().iloc[-1])
+    ma200 = float(price_series.rolling(200).mean().iloc[-1])
+
+    mom_60d = (
+        float((price_series.iloc[-1] / price_series.iloc[-60] - 1) * 100)
+        if len(price_series) >= 60
+        else 0
+    )
+
+    vol = float(price_series.pct_change().rolling(20).std().iloc[-1] * np.sqrt(252) * 100)
+
+    atr_df = calculate_atr(prices[[symbol]], 14)
+    atr = float(atr_df[symbol].iloc[-1])
+
+    rsi_series = calculate_rsi(price_series)
+    rsi = float(rsi_series.iloc[-1])
+
+    macd_df = calculate_macd(price_series)
+    macd_val = float(macd_df["macd"].iloc[-1])
+    macd_signal = float(macd_df["signal"].iloc[-1])
+    macd_hist = float(macd_df["hist"].iloc[-1])
+
+    bb_df = calculate_bollinger_bands(price_series)
+    bb_upper = float(bb_df["upper"].iloc[-1])
+    bb_lower = float(bb_df["lower"].iloc[-1])
+
+    return {
+        "price_series": price_series,
+        "current_price": current_price,
+        "ma20": ma20,
+        "ma50": ma50,
+        "ma200": ma200,
+        "mom_60d": mom_60d,
+        "vol": vol,
+        "atr": atr,
+        "rsi": rsi,
+        "macd_val": macd_val,
+        "macd_signal": macd_signal,
+        "macd_hist": macd_hist,
+        "macd_df": macd_df,
+        "bb_upper": bb_upper,
+        "bb_lower": bb_lower,
+    }
+
+
+def _run_ai_analysis(price_series: pd.Series) -> dict:
+    ai_pattern = find_similar_patterns(
+        price_series,
+        price_series.iloc[:-20],
+        window=60,
+        future_window=20,
+    )
+    ai_trend = predict_next_trend(price_series, lookback_days=20, forecast_days=5)
+    return {"pattern_match": ai_pattern, "trend_prediction": ai_trend}
+
+
+def _generate_recommendation(tech: dict, fund_data: dict) -> tuple[str, str]:
+    mom_60d = tech["mom_60d"]
+    vol = tech["vol"]
+    current_price = tech["current_price"]
+    ma200 = tech["ma200"]
+    ma50 = tech["ma50"]
+    rsi = tech["rsi"]
+    macd_hist = tech["macd_hist"]
+    macd_df = tech["macd_df"]
+
+    reasons: list[str] = []
+
+    if mom_60d > 15:
+        reasons.append(f"强劲动量 ({mom_60d:.1f}%)")
+    elif mom_60d > 5:
+        reasons.append("良好动量")
+    elif mom_60d < -10:
+        reasons.append("动量较弱")
+
+    if vol < 25:
+        reasons.append("低波动高质量")
+    elif vol < 35:
+        reasons.append("稳健波动")
+    else:
+        reasons.append("高波动")
+
+    if current_price > ma200:
+        reasons.append("趋势强劲")
+    else:
+        reasons.append("趋势偏弱")
+
+    if rsi > 70:
+        reasons.append("RSI超买")
+    elif rsi < 30:
+        reasons.append("RSI超卖")
+
+    if macd_hist > 0 and macd_hist > macd_df["hist"].iloc[-2]:
+        reasons.append("MACD增强")
+    elif macd_hist < 0:
+        reasons.append("MACD走弱")
+
+    if fund_data.get("peRatio") and fund_data["peRatio"] < 25:
+        reasons.append(f"低估值(PE {fund_data['peRatio']:.1f})")
+    if fund_data.get("pegRatio") and fund_data["pegRatio"] < 1.0:
+        reasons.append("PEG低估")
+
+    signal_strength = 0.5
+    if mom_60d > 10 and current_price > ma200:
+        signal_strength = 0.8
+    elif mom_60d > 5 and current_price > ma50:
+        signal_strength = 0.6
+    elif mom_60d < 0 or current_price < ma200:
+        signal_strength = 0.3
+
+    if signal_strength >= 0.7:
+        recommendation = "强烈推荐"
+    elif signal_strength >= 0.5:
+        recommendation = "推荐"
+    else:
+        recommendation = "观望"
+
+    reason = f"{recommendation} | {', '.join(reasons)}"
+    return recommendation, reason
+
+
+def _compute_price_levels(current_price: float, ma20: float, atr: float) -> dict:
+    entry_moderate = current_price * 0.98
+    entry_aggressive = ma20
+    entry_conservative = current_price * 0.93
+
+    stop_tight = entry_moderate - (atr * 2.0)
+    stop_normal = entry_moderate - (atr * 3.0)
+    stop_loose = entry_moderate - (atr * 4.0)
+
+    tp1 = entry_moderate + (atr * 3)
+    tp2 = entry_moderate + (atr * 6)
+    tp3 = entry_moderate + (atr * 10)
+
+    return {
+        "entry_levels": {
+            "aggressive": round(entry_aggressive, 2),
+            "aggressive_label": "激进入场 (MA20)",
+            "moderate": round(entry_moderate, 2),
+            "moderate_label": "稳健入场 (回调2%)",
+            "conservative": round(entry_conservative, 2),
+            "conservative_label": "保守入场 (回调7%)",
+        },
+        "stop_levels": {
+            "tight": round(stop_tight, 2),
+            "tight_label": "紧止损 (ATR×2)",
+            "normal": round(stop_normal, 2),
+            "normal_label": "标准止损 (ATR×3)",
+            "loose": round(stop_loose, 2),
+            "loose_label": "宽止损 (ATR×4)",
+        },
+        "tp_levels": {
+            "tp1": round(tp1, 2),
+            "tp1_label": "TP1 (ATR×3)",
+            "tp2": round(tp2, 2),
+            "tp2_label": "TP2 (ATR×6)",
+            "tp3": round(tp3, 2),
+            "tp3_label": "TP3 (ATR×10)",
+        },
+    }
+
+
+def _build_ohlcv_bars(symbol: str, end_date: date, days: int) -> list[dict]:
+    ohlcv_start = str(end_date - timedelta(days=days + 30))
+    ohlcv_map = load_local_daily_ohlcv([symbol], ohlcv_start, str(end_date))
+    bars: list[dict] = []
+    if symbol in ohlcv_map:
+        ohlcv_df = ohlcv_map[symbol].iloc[-days:]
+        for dt, row in ohlcv_df.iterrows():
+            bars.append(
+                {
+                    "date": str(dt.date()),
+                    "open": round(float(row["Open"]), 4),
+                    "high": round(float(row["High"]), 4),
+                    "low": round(float(row["Low"]), 4),
+                    "close": round(float(row["Close"]), 4),
+                    "volume": int(row["Volume"]),
+                }
+            )
+    return bars
+
+
 @app.get("/api/stock/{symbol}")
-async def analyze_stock(symbol: str, days: int = 90):
+def analyze_stock(symbol: str, days: int = 90):
     """
     单个股票详细分析
 
@@ -339,7 +525,6 @@ async def analyze_stock(symbol: str, days: int = 90):
         # 避免 Tiingo 429 退避导致页面长时间等待，这里直接走 Yahoo 路径。
         stock_tiingo_api_key: str | None = None
 
-        # 获取价格数据
         prices = load_prices_with_fallback(
             [symbol] + cfg.universe.equity_symbols,
             str(start_date),
@@ -353,7 +538,6 @@ async def analyze_stock(symbol: str, days: int = 90):
         if symbol not in prices.columns:
             raise HTTPException(status_code=404, detail=f"未找到股票 {symbol}")
 
-        # 获取市场状态
         regime_engine = RegimeEngine(
             ma_window=cfg.regime.ma_window,
             momentum_window=cfg.regime.momentum_window,
@@ -363,7 +547,6 @@ async def analyze_stock(symbol: str, days: int = 90):
             prices, vix=None, market_symbol=cfg.universe.market_benchmark
         )
 
-        # 获取基本面数据
         fundamentals_map = load_yahoo_fundamentals(
             [symbol], cache_enabled=cfg.cache.enabled, cache_dir=cfg.cache.dir
         )
@@ -376,200 +559,36 @@ async def analyze_stock(symbol: str, days: int = 90):
             "sector": None,
         }
 
-        # 计算技术指标
-        price_series = prices[symbol]
-        current_price = float(price_series.iloc[-1])
-        ma20 = float(price_series.rolling(20).mean().iloc[-1])
-        ma50 = float(price_series.rolling(50).mean().iloc[-1])
-        ma200 = float(price_series.rolling(200).mean().iloc[-1])
-
-        # 计算动量
-        mom_60d = (
-            float((price_series.iloc[-1] / price_series.iloc[-60] - 1) * 100)
-            if len(price_series) >= 60
-            else 0
-        )
-
-        # 计算波动率
-        vol = float(price_series.pct_change().rolling(20).std().iloc[-1] * np.sqrt(252) * 100)
-
-        # 计算 ATR
-        atr_df = calculate_atr(prices[[symbol]], 14)
-        atr = float(atr_df[symbol].iloc[-1])
-
-        # 计算高级技术指标 (RSI, MACD, BB)
-        rsi_series = calculate_rsi(price_series)
-        rsi = float(rsi_series.iloc[-1])
-
-        macd_df = calculate_macd(price_series)
-        macd_val = float(macd_df["macd"].iloc[-1])
-        macd_signal = float(macd_df["signal"].iloc[-1])
-        macd_hist = float(macd_df["hist"].iloc[-1])
-
-        bb_df = calculate_bollinger_bands(price_series)
-        bb_upper = float(bb_df["upper"].iloc[-1])
-        bb_upper = float(bb_df["upper"].iloc[-1])
-        bb_lower = float(bb_df["lower"].iloc[-1])
-
-        # =========================================================================
-        # AI/ML 预测分析
-        # =========================================================================
-
-        # 1. 相似形态搜索 (KNN)
-        ai_pattern = find_similar_patterns(
-            price_series,
-            price_series.iloc[
-                :-20
-            ],  # 在历史数据中搜索 (排除最近20天以防过度拟合，其实应该搜非样本)
-            window=60,
-            future_window=20,
-        )
-
-        # 2. 线性趋势预测
-        ai_trend = predict_next_trend(price_series, lookback_days=20, forecast_days=5)
-
-        # =========================================================================
-
-        # 生成推荐理由
-        reasons = []
-        recommendation = "观望"
-
-        if mom_60d > 15:
-            reasons.append(f"强劲动量 ({mom_60d:.1f}%)")
-        elif mom_60d > 5:
-            reasons.append("良好动量")
-        elif mom_60d < -10:
-            reasons.append("动量较弱")
-
-        if vol < 25:
-            reasons.append("低波动高质量")
-        elif vol < 35:
-            reasons.append("稳健波动")
-        else:
-            reasons.append("高波动")
-
-        if current_price > ma200:
-            reasons.append("趋势强劲")
-        else:
-            reasons.append("趋势偏弱")
-
-        # RSI 逻辑
-        if rsi > 70:
-            reasons.append("RSI超买")
-        elif rsi < 30:
-            reasons.append("RSI超卖")
-
-        # MACD 逻辑
-        if macd_hist > 0 and macd_hist > macd_df["hist"].iloc[-2]:
-            reasons.append("MACD增强")
-        elif macd_hist < 0:
-            reasons.append("MACD走弱")
-
-        # 基本面逻辑
-        if fund_data["peRatio"] and fund_data["peRatio"] < 25:
-            reasons.append(f"低估值(PE {fund_data['peRatio']:.1f})")
-        if fund_data["pegRatio"] and fund_data["pegRatio"] < 1.0:
-            reasons.append("PEG低估")
-
-        # 确定推荐等级
-        signal_strength = 0.5
-        if mom_60d > 10 and current_price > ma200:
-            signal_strength = 0.8
-        elif mom_60d > 5 and current_price > ma50:
-            signal_strength = 0.6
-        elif mom_60d < 0 or current_price < ma200:
-            signal_strength = 0.3
-
-        if signal_strength >= 0.7:
-            recommendation = "强烈推荐"
-        elif signal_strength >= 0.5:
-            recommendation = "推荐"
-        else:
-            recommendation = "观望"
-
-        reason = f"{recommendation} | {', '.join(reasons)}"
-
-        # 计算多级价位
-        entry_moderate = current_price * 0.98
-        entry_aggressive = ma20
-        entry_conservative = current_price * 0.93
-
-        stop_tight = entry_moderate - (atr * 2.0)
-        stop_normal = entry_moderate - (atr * 3.0)
-        stop_loose = entry_moderate - (atr * 4.0)
-
-        tp1 = entry_moderate + (atr * 3)
-        tp2 = entry_moderate + (atr * 6)
-        tp3 = entry_moderate + (atr * 10)
-
-        # ── 加载真实 OHLCV K线数据 (用于前端 lightweight-charts) ──
-        ohlcv_start = str(end_date - timedelta(days=days + 30))
-        ohlcv_map = load_local_daily_ohlcv([symbol], ohlcv_start, str(end_date))
-        ohlcv_bars: list[dict] = []
-        if symbol in ohlcv_map:
-            ohlcv_df = ohlcv_map[symbol].iloc[-days:]
-            for dt, row in ohlcv_df.iterrows():
-                ohlcv_bars.append(
-                    {
-                        "date": str(dt.date()),
-                        "open": round(float(row["Open"]), 4),
-                        "high": round(float(row["High"]), 4),
-                        "low": round(float(row["Low"]), 4),
-                        "close": round(float(row["Close"]), 4),
-                        "volume": int(row["Volume"]),
-                    }
-                )
+        tech = _compute_technicals(prices, symbol)
+        ai_analysis = _run_ai_analysis(tech["price_series"])
+        recommendation, reason = _generate_recommendation(tech, fund_data)
+        levels = _compute_price_levels(tech["current_price"], tech["ma20"], tech["atr"])
+        ohlcv_bars = _build_ohlcv_bars(symbol, end_date, days)
 
         return {
             "symbol": symbol,
             "name": StockSelector.STOCK_NAMES.get(symbol, symbol),
             "date": str(end_date),
-            "current_price": round(current_price, 2),
+            "current_price": round(tech["current_price"], 2),
             "recommendation": recommendation,
             "reason": reason,
             "technicals": {
-                "ma20": round(ma20, 2),
-                "ma50": round(ma50, 2),
-                "ma200": round(ma200, 2),
-                "momentum_60d": round(mom_60d, 2),
-                "volatility": round(vol, 2),
-                "atr": round(atr, 2),
-                "rsi": round(rsi, 2),
-                "macd": round(macd_val, 2),
-                "macd_signal": round(macd_signal, 2),
-                "macd_hist": round(macd_hist, 2),
-                "bb_upper": round(bb_upper, 2),
-                "bb_lower": round(bb_lower, 2),
+                "ma20": round(tech["ma20"], 2),
+                "ma50": round(tech["ma50"], 2),
+                "ma200": round(tech["ma200"], 2),
+                "momentum_60d": round(tech["mom_60d"], 2),
+                "volatility": round(tech["vol"], 2),
+                "atr": round(tech["atr"], 2),
+                "rsi": round(tech["rsi"], 2),
+                "macd": round(tech["macd_val"], 2),
+                "macd_signal": round(tech["macd_signal"], 2),
+                "macd_hist": round(tech["macd_hist"], 2),
+                "bb_upper": round(tech["bb_upper"], 2),
+                "bb_lower": round(tech["bb_lower"], 2),
             },
-            "ai_analysis": {
-                "pattern_match": ai_pattern,
-                "trend_prediction": ai_trend,
-            },
+            "ai_analysis": ai_analysis,
             "fundamentals": fund_data,
-            "entry_levels": {
-                "aggressive": round(entry_aggressive, 2),
-                "aggressive_label": "激进入场 (MA20)",
-                "moderate": round(entry_moderate, 2),
-                "moderate_label": "稳健入场 (回调2%)",
-                "conservative": round(entry_conservative, 2),
-                "conservative_label": "保守入场 (回调7%)",
-            },
-            "stop_levels": {
-                "tight": round(stop_tight, 2),
-                "tight_label": "紧止损 (ATR×2)",
-                "normal": round(stop_normal, 2),
-                "normal_label": "标准止损 (ATR×3)",
-                "loose": round(stop_loose, 2),
-                "loose_label": "宽止损 (ATR×4)",
-            },
-            "tp_levels": {
-                "tp1": round(tp1, 2),
-                "tp1_label": "TP1 (ATR×3)",
-                "tp2": round(tp2, 2),
-                "tp2_label": "TP2 (ATR×6)",
-                "tp3": round(tp3, 2),
-                "tp3_label": "TP3 (ATR×10)",
-            },
+            **levels,
             "market_regime": regime_state.regime,
             "ohlcv": ohlcv_bars,
         }
