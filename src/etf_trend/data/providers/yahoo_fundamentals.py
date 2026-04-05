@@ -9,6 +9,7 @@ import pandas as pd
 import yfinance as yf
 
 from etf_trend.data.cache import cache_path
+from etf_trend.data.providers.local_fundamentals import load_local_fundamentals
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ def load_yahoo_fundamentals(
     cache_dir: str = "cache",
 ) -> dict[str, FundamentalData]:
     """
-    加载基本面数据 (使用 Yahoo Finance, 并行获取)
+    加载基本面数据 (hybrid: 本地 parquet → JSON 缓存 → Yahoo Finance API)
 
     Args:
         symbols: 股票代码列表
@@ -100,11 +101,17 @@ def load_yahoo_fundamentals(
         dict: {symbol: FundamentalData}
     """
     result: dict[str, FundamentalData] = {}
+
+    local_data, still_missing = load_local_fundamentals(symbols)
+    result.update(local_data)
+
+    if not still_missing:
+        return result
+
     missing: list[str] = []
 
-    # 尝试从缓存加载
     if cache_enabled:
-        for sym in symbols:
+        for sym in still_missing:
             key = f"yahoo_fund_{sym}_{pd.Timestamp.now().strftime('%Y%m%d')}"
             path = cache_path(cache_dir, key)
             json_path = path.with_suffix(".json")
@@ -121,12 +128,11 @@ def load_yahoo_fundamentals(
             else:
                 missing.append(sym)
     else:
-        missing = list(symbols)
+        missing = list(still_missing)
 
     if not missing:
         return result
 
-    # 并行获取缺失数据
     print(f"  正在从 Yahoo Finance 并行获取 {len(missing)} 个资产的基本面数据...")
 
     with ThreadPoolExecutor(max_workers=min(_YAHOO_MAX_WORKERS, len(missing))) as pool:
